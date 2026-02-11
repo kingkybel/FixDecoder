@@ -1,0 +1,3 @@
+[submodule "MessageToObject"]
+	path = MessageToObject
+	url = git@github.com:kingkybel/MessageToObject.git
