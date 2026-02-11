@@ -183,6 +183,33 @@ if(symbol && qty && px)
 }
 ```
 
+### Controller demo (`fix_controller_demo`)
+
+Build the demo executable:
+
+```bash
+cmake --build build --target fix_controller_demo --parallel $(nproc)
+```
+
+Run locally in two terminals.
+
+Terminal 1 (acceptor/listener):
+
+```bash
+FIX_ROLE=acceptor FIX_PORT=5001 ./build/RelWithDebInfo/bin/fix_controller_demo
+```
+
+Terminal 2 (initiator/connector):
+
+```bash
+FIX_ROLE=initiator FIX_HOST=127.0.0.1 FIX_PORT=5001 FIX_SCENARIO=handshake ./build/RelWithDebInfo/bin/fix_controller_demo
+```
+
+Supported scenarios (`FIX_SCENARIO`):
+- `handshake` (default)
+- `out_of_sync`
+- `garbled`
+
 ## Testing
 
 Run all tests:
