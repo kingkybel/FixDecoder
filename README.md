@@ -18,6 +18,7 @@ It supports:
 The project includes:
 - `fixdecoder` static library
 - `example_usage` CLI executable
+- `fix_controller_demo` CLI executable for session-level FIX protocol exchanges
 - GoogleTest-based test suite with version-specific sample messages
 
 ## How It Works
@@ -194,6 +195,32 @@ The test suite includes:
 - dictionary and decoder unit tests
 - data-driven tests over all supported FIX versions
 - invalid-message mutation tests derived from valid sample messages
+- controller unit tests for logon handshake, out-of-sync sequence detection, and garbled-message rejection
+
+## Session Controller and Docker Integration Tests
+
+The new session-level controller (`fix::Controller`) is available in:
+- `include/fix_controller.h`
+- `src/fix_controller.cc`
+
+Containerized peer-to-peer tests are defined in:
+- `docker/fix-controller/compose.yml`
+- `docker/fix-controller/Dockerfile.acceptor`
+- `docker/fix-controller/Dockerfile.initiator`
+- Detailed Docker test documentation: [`docker/fix-controller/README.md`](docker/fix-controller/README.md)
+
+Run FIX handshake containers:
+
+```bash
+docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+```
+
+Run out-of-sync or garbled scenarios:
+
+```bash
+FIX_SCENARIO=out_of_sync docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+FIX_SCENARIO=garbled docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+```
 
 ## Notes and Current Scope
 

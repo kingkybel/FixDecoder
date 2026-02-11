@@ -28,6 +28,7 @@
 add_library(fixdecoder
         fix_dictionary.cc
         fix_decoder.cc
+        fix_controller.cc
 )
 
 target_include_directories(fixdecoder
@@ -45,6 +46,13 @@ target_link_libraries(fixdecoder
 add_executable(example_usage examples.cc)
 
 target_link_libraries(example_usage
+        PRIVATE
+        fixdecoder
+)
+
+add_executable(fix_controller_demo fix_controller_demo.cc)
+
+target_link_libraries(fix_controller_demo
         PRIVATE
         fixdecoder
 )

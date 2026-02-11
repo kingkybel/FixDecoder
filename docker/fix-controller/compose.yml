@@ -1,0 +1,31 @@
+name: fix-controller-test
+
+services:
+  fix-acceptor:
+    build:
+      context: ../..
+      dockerfile: docker/fix-controller/Dockerfile.acceptor
+    environment:
+      FIX_ROLE: acceptor
+      FIX_PORT: 5001
+      FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+    networks:
+      - fixnet
+
+  fix-initiator:
+    build:
+      context: ../..
+      dockerfile: docker/fix-controller/Dockerfile.initiator
+    depends_on:
+      - fix-acceptor
+    environment:
+      FIX_ROLE: initiator
+      FIX_HOST: fix-acceptor
+      FIX_PORT: 5001
+      FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+    networks:
+      - fixnet
+
+networks:
+  fixnet:
+    driver: bridge

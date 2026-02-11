@@ -24,14 +24,15 @@
 #
 
 add_executable(run_tests
+        run_tests.cc
         fixdecoder_tests.cc
+        fix_controller_tests.cc
 )
 
 target_link_libraries(run_tests
         PRIVATE
         fixdecoder
         GTest::gtest
-        GTest::gtest_main
 )
 
 target_compile_definitions(run_tests
@@ -39,5 +40,4 @@ target_compile_definitions(run_tests
         FIXDECODER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-include(GoogleTest)
-gtest_discover_tests(run_tests)
+add_test(NAME run_tests COMMAND run_tests)
