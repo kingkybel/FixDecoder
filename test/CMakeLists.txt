@@ -23,21 +23,21 @@
 # @author: Dieter J Kybelksties
 #
 
-add_executable(fixdecoder_tests
+add_executable(run_tests
         fixdecoder_tests.cc
 )
 
-target_link_libraries(fixdecoder_tests
+target_link_libraries(run_tests
         PRIVATE
         fixdecoder
         GTest::gtest
         GTest::gtest_main
 )
 
-target_compile_definitions(fixdecoder_tests
+target_compile_definitions(run_tests
         PRIVATE
         FIXDECODER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 include(GoogleTest)
-gtest_discover_tests(fixdecoder_tests)
+gtest_discover_tests(run_tests)
