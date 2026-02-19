@@ -25,9 +25,9 @@
 
 #include "fix_controller.h"
 
+#include <cctype>
 #include <charconv>
 #include <chrono>
-#include <cctype>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
@@ -39,59 +39,61 @@ namespace fix
 namespace
 {
 
-constexpr char kSoh = 0x01;
+    constexpr char kSoh = 0x01;
 
-std::string toChecksum(const std::string &message_without_checksum)
-{
-    int checksum = 0;
-    for(unsigned char ch : message_without_checksum)
+    std::string toChecksum(const std::string &message_without_checksum)
     {
-        checksum = (checksum + static_cast<int>(ch)) % 256;
+        int checksum = 0;
+        for(const unsigned char ch: message_without_checksum)
+        {
+            checksum = (checksum + static_cast<int>(ch)) % 256;
+        }
+
+        std::ostringstream out;
+        out << std::setw(3) << std::setfill('0') << checksum;
+        return out.str();
     }
 
-    std::ostringstream out;
-    out << std::setw(3) << std::setfill('0') << checksum;
-    return out.str();
-}
-
-std::string toString(const std::uint32_t value)
-{
-    return std::to_string(value);
-}
-
-bool parseUint(const std::string &value, std::uint32_t *out)
-{
-    if(value.empty())
+    std::string toString(const std::uint32_t value)
     {
-        return false;
+        return std::to_string(value);
     }
 
-    std::uint32_t parsed = 0;
-    const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-    if(ec != std::errc{} || ptr != value.data() + value.size())
+    bool parseUint(const std::string &value, std::uint32_t &out)
     {
-        return false;
+        if(value.empty())
+        {
+            return false;
+        }
+
+        std::uint32_t parsed = 0;
+        const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+        if(ec != std::errc{} || ptr != value.data() + value.size())
+        {
+            return false;
+        }
+        out = parsed;
+        return true;
     }
-    *out = parsed;
-    return true;
-}
 
 }  // namespace
 
 Controller::Controller(std::string sender_comp_id,
                        std::string target_comp_id,
-                       const Role role,
+                       const Role  role,
                        std::string begin_string,
-                       const int heartbeat_interval_seconds)
-    : sender_comp_id_(std::move(sender_comp_id)),
-      target_comp_id_(std::move(target_comp_id)),
-      role_(role),
-      begin_string_(std::move(begin_string)),
-      heartbeat_interval_seconds_(heartbeat_interval_seconds)
+                       const int   heartbeat_interval_seconds)
+: sender_comp_id_(std::move(sender_comp_id))
+, target_comp_id_(std::move(target_comp_id))
+, role_(role)
+, begin_string_(std::move(begin_string))
+, heartbeat_interval_seconds_(heartbeat_interval_seconds)
 {
 }
 
-std::string Controller::buildMessageWithSeqNum(const std::string msg_type, const std::vector<Field> &fields, const std::uint32_t seq_num)
+std::string Controller::buildMessageWithSeqNum(std::string               msg_type,
+                                               const std::vector<Field> &fields,
+                                               const std::uint32_t       seq_num) const
 {
     std::string body;
     body.reserve(256);
@@ -102,7 +104,7 @@ std::string Controller::buildMessageWithSeqNum(const std::string msg_type, const
     body += "56=" + target_comp_id_ + kSoh;
     body += "52=" + utcTimestamp() + kSoh;
 
-    for(const auto &[tag, value] : fields)
+    for(const auto &[tag, value]: fields)
     {
         body += std::to_string(tag);
         body += '=';
@@ -136,11 +138,11 @@ std::string Controller::buildLogon(const bool reset_seq_num)
     {
         fields.emplace_back(141, "Y");
         expected_incoming_seq_num_ = 1;
-        next_outgoing_seq_num_ = 1;
+        next_outgoing_seq_num_     = 1;
     }
 
     logon_sent_ = true;
-    state_ = SessionState::kAwaitingLogon;
+    state_      = SessionState::kAwaitingLogon;
     return buildMessage("A", fields);
 }
 
@@ -189,9 +191,9 @@ std::string Controller::utcTimestamp()
 {
     using namespace std::chrono;
 
-    const auto now = system_clock::now();
-    const auto ms = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-    const std::time_t t = system_clock::to_time_t(now);
+    const auto        now = system_clock::now();
+    const auto        ms  = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
+    const std::time_t t   = system_clock::to_time_t(now);
 
     std::tm tm{};
 #if defined(_WIN32)
@@ -211,7 +213,7 @@ std::string Controller::normalize(const std::string_view message)
 {
     std::string normalized;
     normalized.reserve(message.size());
-    for(const char ch : message)
+    for(const char ch: message)
     {
         normalized.push_back(ch == '|' ? kSoh : ch);
     }
@@ -246,12 +248,12 @@ std::vector<std::string> Controller::consume(const std::string_view incoming_byt
             break;
         }
 
-        const char c1 = stream_buffer_[trailer + 4];
-        const char c2 = stream_buffer_[trailer + 5];
-        const char c3 = stream_buffer_[trailer + 6];
+        const char c1  = stream_buffer_[trailer + 4];
+        const char c2  = stream_buffer_[trailer + 5];
+        const char c3  = stream_buffer_[trailer + 6];
         const char end = stream_buffer_[trailer + 7];
-        if(!std::isdigit(static_cast<unsigned char>(c1)) || !std::isdigit(static_cast<unsigned char>(c2)) ||
-           !std::isdigit(static_cast<unsigned char>(c3)) || end != kSoh)
+        if(!std::isdigit(static_cast<unsigned char>(c1)) || !std::isdigit(static_cast<unsigned char>(c2))
+           || !std::isdigit(static_cast<unsigned char>(c3)) || end != kSoh)
         {
             stream_buffer_.erase(0, trailer + 1);
             continue;
@@ -264,8 +266,10 @@ std::vector<std::string> Controller::consume(const std::string_view incoming_byt
     return messages;
 }
 
-bool Controller::parseMessage(const std::string &normalized_message, ParsedMessage *parsed, std::string *error)
+bool Controller::parseMessage(const std::string &normalized_message, ParsedMessage &parsed, ParseError &error)
 {
+    error = ParseError{};
+
     ParsedMessage result;
 
     std::size_t pos = 0;
@@ -274,30 +278,22 @@ bool Controller::parseMessage(const std::string &normalized_message, ParsedMessa
         const std::size_t end = normalized_message.find(kSoh, pos);
         if(end == std::string::npos)
         {
-            if(error != nullptr)
-            {
-                *error = "Missing SOH-delimited field terminator";
-            }
+            error = ParseError{ParseErrorCode::kMissingFieldTerminator, 0};
             return false;
         }
         const std::size_t eq = normalized_message.find('=', pos);
         if(eq == std::string::npos || eq >= end)
         {
-            if(error != nullptr)
-            {
-                *error = "Malformed tag=value field";
-            }
+            error = ParseError{ParseErrorCode::kMalformedTagValue, 0};
             return false;
         }
 
         int tag = 0;
-        const auto [tag_end, tag_ec] = std::from_chars(normalized_message.data() + pos, normalized_message.data() + eq, tag);
+        const auto [tag_end, tag_ec] =
+         std::from_chars(normalized_message.data() + pos, normalized_message.data() + eq, tag);
         if(tag_ec != std::errc{} || tag_end != normalized_message.data() + eq)
         {
-            if(error != nullptr)
-            {
-                *error = "Tag is not numeric";
-            }
+            error = ParseError{ParseErrorCode::kTagNotNumeric, 0};
             return false;
         }
 
@@ -306,7 +302,7 @@ bool Controller::parseMessage(const std::string &normalized_message, ParsedMessa
         pos = end + 1;
     }
 
-    for(const ParsedField &field : result.ordered_fields)
+    for(const ParsedField &field: result.ordered_fields)
     {
         if(field.tag == 35)
         {
@@ -314,12 +310,9 @@ bool Controller::parseMessage(const std::string &normalized_message, ParsedMessa
         }
         else if(field.tag == 34)
         {
-            if(!parseUint(field.value, &result.sequence_number))
+            if(!parseUint(field.value, result.sequence_number))
             {
-                if(error != nullptr)
-                {
-                    *error = "Invalid MsgSeqNum";
-                }
+                error = ParseError{ParseErrorCode::kInvalidMsgSeqNum, 34};
                 return false;
             }
             result.has_sequence_number = true;
@@ -328,23 +321,48 @@ bool Controller::parseMessage(const std::string &normalized_message, ParsedMessa
 
     if(result.msg_type.empty())
     {
-        if(error != nullptr)
-        {
-            *error = "Missing MsgType (35)";
-        }
+        error = ParseError{ParseErrorCode::kMissingMsgType, 35};
         return false;
     }
     if(!result.has_sequence_number)
     {
-        if(error != nullptr)
-        {
-            *error = "Missing MsgSeqNum (34)";
-        }
+        error = ParseError{ParseErrorCode::kMissingMsgSeqNum, 34};
         return false;
     }
 
-    *parsed = std::move(result);
+    parsed = std::move(result);
     return true;
+}
+
+std::string Controller::parseErrorText(const ParseError &error)
+{
+    const auto with_field = [&](const std::string &base) -> std::string
+    {
+        if(error.field > 0)
+        {
+            return base + " (tag " + std::to_string(error.field) + ")";
+        }
+        return base;
+    };
+
+    switch(error.code)
+    {
+        case ParseErrorCode::kMissingFieldTerminator:
+            return with_field("Missing SOH-delimited field terminator");
+        case ParseErrorCode::kMalformedTagValue:
+            return with_field("Malformed tag=value field");
+        case ParseErrorCode::kTagNotNumeric:
+            return with_field("Tag is not numeric");
+        case ParseErrorCode::kInvalidMsgSeqNum:
+            return with_field("Invalid MsgSeqNum");
+        case ParseErrorCode::kMissingMsgType:
+            return with_field("Missing MsgType");
+        case ParseErrorCode::kMissingMsgSeqNum:
+            return with_field("Missing MsgSeqNum");
+        case ParseErrorCode::kNone:
+        default:
+            return with_field("Malformed FIX message");
+    }
 }
 
 bool Controller::validateChecksum(const std::string &normalized_message)
@@ -392,13 +410,14 @@ bool Controller::validateBodyLength(const std::string &normalized_message)
     {
         return false;
     }
+
     if(normalized_message.compare(begin_field_end + 1, 2, "9=") != 0)
     {
         return false;
     }
 
     std::uint32_t expected_len = 0;
-    if(!parseUint(normalized_message.substr(body_len_eq + 1, body_field_end - body_len_eq - 1), &expected_len))
+    if(!parseUint(normalized_message.substr(body_len_eq + 1, body_field_end - body_len_eq - 1), expected_len))
     {
         return false;
     }
@@ -415,7 +434,7 @@ bool Controller::validateBodyLength(const std::string &normalized_message)
 
 std::string Controller::fieldValue(const ParsedMessage &parsed, const int tag)
 {
-    for(const ParsedField &field : parsed.ordered_fields)
+    for(const ParsedField &field: parsed.ordered_fields)
     {
         if(field.tag == tag)
         {
@@ -439,12 +458,12 @@ Controller::Action Controller::onMessage(const std::string &raw_message)
     }
 
     ParsedMessage parsed;
-    std::string parse_error;
-    if(!parseMessage(normalized, &parsed, &parse_error))
+    ParseError    parse_error;
+    if(!parseMessage(normalized, parsed, parse_error))
     {
         action.disposition = MessageDisposition::kGarbled;
         action.events.emplace_back("garbled_message");
-        action.outbound_messages.emplace_back(buildMessage("3", {{58, parse_error}}));
+        action.outbound_messages.emplace_back(buildMessage("3", {{58, parseErrorText(parse_error)}}));
         return action;
     }
 
@@ -526,7 +545,7 @@ Controller::Action Controller::onMessage(const std::string &raw_message)
     if(parsed.msg_type == "4")
     {
         std::uint32_t new_seq = 0;
-        if(parseUint(fieldValue(parsed, 36), &new_seq) && new_seq >= expected_incoming_seq_num_)
+        if(parseUint(fieldValue(parsed, 36), new_seq) && new_seq >= expected_incoming_seq_num_)
         {
             expected_incoming_seq_num_ = new_seq;
             action.events.emplace_back("sequence_reset");

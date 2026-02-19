@@ -1,31 +1,170 @@
 name: fix-controller-test
 
 services:
-  fix-acceptor:
+  fix-builder:
+    profiles: [ "build-bin" ]
     build:
       context: ../..
-      dockerfile: docker/fix-controller/Dockerfile.acceptor
+      dockerfile: docker/fix-controller/Dockerfile.builder
+    image: fix-controller-builder:latest
+    working_dir: /workspace
+    command: >
+      bash -lc "rm -rf /tmp/build &&
+      cmake -S /workspace -B /tmp/build -DCMAKE_BUILD_TYPE=Release &&
+      cmake --build /tmp/build --target fix_controller_demo --parallel 3 &&
+      cp /tmp/build/Release/bin/fix_controller_demo /out/fix_controller_demo &&
+      chmod +x /out/fix_controller_demo"
+    volumes:
+      - ../..:/workspace:ro
+      - fix-controller-bin:/out
+
+  fix-exchange-1:
+    build:
+      context: ../..
+      dockerfile: docker/fix-controller/Dockerfile.runtime
+    image: fix-controller-runtime:latest
     environment:
-      FIX_ROLE: acceptor
+      FIX_ROLE: exchange
       FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_EXCHANGE_1_BEGIN_STRING:-FIX.4.4}
       FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    ports:
+      - "${FIX_EXCHANGE_1_HOST_PORT:-15001}:5001"
+    volumes:
+      - fix-controller-bin:/app:ro
     networks:
       - fixnet
 
-  fix-initiator:
-    build:
-      context: ../..
-      dockerfile: docker/fix-controller/Dockerfile.initiator
+  fix-exchange-2:
+    image: fix-controller-runtime:latest
     depends_on:
-      - fix-acceptor
+      - fix-exchange-1
     environment:
-      FIX_ROLE: initiator
-      FIX_HOST: fix-acceptor
+      FIX_ROLE: exchange
       FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_EXCHANGE_2_BEGIN_STRING:-FIX.4.4}
       FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    ports:
+      - "${FIX_EXCHANGE_2_HOST_PORT:-15002}:5001"
+    volumes:
+      - fix-controller-bin:/app:ro
+    networks:
+      - fixnet
+
+  fix-client-1:
+    profiles: [ "single-client" ]
+    image: fix-controller-runtime:latest
+    depends_on:
+      - fix-exchange-1
+      - fix-exchange-2
+    environment:
+      FIX_ROLE: client
+      FIX_HOSTS: fix-exchange-1
+      FIX_PORTS: 5001
+      FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_CLIENT_1_BEGIN_STRING:-FIX.4.4}
+      FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    volumes:
+      - fix-controller-bin:/app:ro
+    networks:
+      - fixnet
+
+  fix-client-multi:
+    profiles: [ "multi-exchange" ]
+    image: fix-controller-runtime:latest
+    depends_on:
+      - fix-exchange-1
+      - fix-exchange-2
+    environment:
+      FIX_ROLE: client
+      FIX_HOSTS: fix-exchange-1,fix-exchange-2
+      FIX_PORTS: 5001,5001
+      FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_CLIENT_MULTI_BEGIN_STRING:-FIX.4.4}
+      FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    volumes:
+      - fix-controller-bin:/app:ro
+    networks:
+      - fixnet
+
+  fix-client-2:
+    profiles: [ "multi-client" ]
+    image: fix-controller-runtime:latest
+    depends_on:
+      - fix-exchange-1
+      - fix-exchange-2
+    environment:
+      FIX_ROLE: client
+      FIX_HOSTS: fix-exchange-2
+      FIX_PORTS: 5001
+      FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_CLIENT_2_BEGIN_STRING:-FIX.4.4}
+      FIX_SCENARIO: ${FIX_SCENARIO:-handshake}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    volumes:
+      - fix-controller-bin:/app:ro
+    networks:
+      - fixnet
+
+  fix-client-mesh-1:
+    profiles: [ "multi-mesh" ]
+    image: fix-controller-runtime:latest
+    depends_on:
+      - fix-exchange-1
+      - fix-exchange-2
+    environment:
+      FIX_ROLE: client
+      FIX_HOSTS: fix-exchange-1,fix-exchange-2
+      FIX_PORTS: 5001,5001
+      FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_CLIENT_MESH_1_BEGIN_STRING:-FIX.4.4}
+      FIX_SCENARIO: ${FIX_SCENARIO:-conversation}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    volumes:
+      - fix-controller-bin:/app:ro
+    networks:
+      - fixnet
+
+  fix-client-mesh-2:
+    profiles: [ "multi-mesh" ]
+    image: fix-controller-runtime:latest
+    depends_on:
+      - fix-exchange-1
+      - fix-exchange-2
+    environment:
+      FIX_ROLE: client
+      FIX_HOSTS: fix-exchange-1,fix-exchange-2
+      FIX_PORTS: 5001,5001
+      FIX_PORT: 5001
+      FIX_BEGIN_STRING: ${FIX_CLIENT_MESH_2_BEGIN_STRING:-FIX.4.4}
+      FIX_SCENARIO: ${FIX_SCENARIO:-conversation}
+      FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
+      FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
+      FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+    volumes:
+      - fix-controller-bin:/app:ro
     networks:
       - fixnet
 
 networks:
   fixnet:
     driver: bridge
+
+volumes:
+  fix-controller-bin:

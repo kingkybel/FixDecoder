@@ -40,7 +40,7 @@ namespace fix
  */
 class Controller
 {
-public:
+    public:
     /** @brief Endpoint role in the FIX session. */
     enum class Role
     {
@@ -100,9 +100,9 @@ public:
      */
     Controller(std::string sender_comp_id,
                std::string target_comp_id,
-               Role role,
-               std::string begin_string = "FIX.4.4",
-               int heartbeat_interval_seconds = 30);
+               Role        role,
+               std::string begin_string               = "FIX.4.4",
+               int         heartbeat_interval_seconds = 30);
 
     /** @brief Builds a logon (`35=A`) and transitions state to awaiting logon. */
     std::string buildLogon(bool reset_seq_num = false);
@@ -131,49 +131,79 @@ public:
     Action onMessage(const std::string &raw_message);
 
     /** @brief Returns current controller session state. */
-    SessionState state() const { return state_; }
+    SessionState state() const
+    {
+        return state_;
+    }
     /** @brief Returns next expected inbound `MsgSeqNum` (34). */
-    std::uint32_t expectedIncomingSeqNum() const { return expected_incoming_seq_num_; }
+    std::uint32_t expectedIncomingSeqNum() const
+    {
+        return expected_incoming_seq_num_;
+    }
     /** @brief Returns next outbound `MsgSeqNum` (34) that will be assigned. */
-    std::uint32_t nextOutgoingSeqNum() const { return next_outgoing_seq_num_; }
+    std::uint32_t nextOutgoingSeqNum() const
+    {
+        return next_outgoing_seq_num_;
+    }
     /** @brief Advances outbound sequence counter by `delta` (test/simulation helper). */
-    void skipOutboundSequence(std::uint32_t delta) { next_outgoing_seq_num_ += delta; }
+    void skipOutboundSequence(std::uint32_t delta)
+    {
+        next_outgoing_seq_num_ += delta;
+    }
 
-private:
+    private:
     struct ParsedField
     {
-        int tag = 0;
+        int         tag = 0;
         std::string value;
     };
 
     struct ParsedMessage
     {
         std::vector<ParsedField> ordered_fields;
-        std::string msg_type;
-        std::uint32_t sequence_number = 0;
-        bool has_sequence_number = false;
+        std::string              msg_type;
+        std::uint32_t            sequence_number     = 0;
+        bool                     has_sequence_number = false;
+    };
+
+    enum class ParseErrorCode : std::int32_t
+    {
+        kNone = 0,
+        kMissingFieldTerminator,
+        kMalformedTagValue,
+        kTagNotNumeric,
+        kInvalidMsgSeqNum,
+        kMissingMsgType,
+        kMissingMsgSeqNum
+    };
+
+    struct ParseError
+    {
+        ParseErrorCode code  = ParseErrorCode::kNone;
+        std::int32_t   field = 0;
     };
 
     std::string buildMessage(std::string msg_type, const std::vector<Field> &fields);
-    std::string buildMessageWithSeqNum(std::string msg_type, const std::vector<Field> &fields, std::uint32_t seq_num);
+    std::string buildMessageWithSeqNum(std::string msg_type, const std::vector<Field> &fields, std::uint32_t seq_num) const;
     static std::string utcTimestamp();
     static std::string normalize(std::string_view message);
-    static bool parseMessage(const std::string &normalized_message, ParsedMessage *parsed, std::string *error);
-    static bool validateChecksum(const std::string &normalized_message);
-    static bool validateBodyLength(const std::string &normalized_message);
+    static bool        parseMessage(const std::string &normalized_message, ParsedMessage &parsed, ParseError &error);
+    static std::string parseErrorText(const ParseError &error);
+    static bool        validateChecksum(const std::string &normalized_message);
+    static bool        validateBodyLength(const std::string &normalized_message);
     static std::string fieldValue(const ParsedMessage &parsed, int tag);
 
-    std::string sender_comp_id_;
-    std::string target_comp_id_;
-    Role role_ = Role::kInitiator;
-    std::string begin_string_;
-    int heartbeat_interval_seconds_ = 30;
-    SessionState state_ = SessionState::kDisconnected;
-    std::uint32_t expected_incoming_seq_num_ = 1;
-    std::uint32_t next_outgoing_seq_num_ = 1;
-    bool logon_sent_ = false;
-    bool logon_received_ = false;
-    std::string stream_buffer_;
+    std::string   sender_comp_id_;
+    std::string   target_comp_id_;
+    Role          role_ = Role::kInitiator;
+    std::string   begin_string_;
+    int           heartbeat_interval_seconds_ = 30;
+    SessionState  state_                      = SessionState::kDisconnected;
+    std::uint32_t expected_incoming_seq_num_  = 1;
+    std::uint32_t next_outgoing_seq_num_      = 1;
+    bool          logon_sent_                 = false;
+    bool          logon_received_             = false;
+    std::string   stream_buffer_;
 };
 
 }  // namespace fix

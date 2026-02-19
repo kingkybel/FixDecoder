@@ -34,7 +34,7 @@ void deliver(const std::string &wire_message, fix::Controller &receiver, fix::Co
 {
     const auto frames = receiver.consume(wire_message);
     ASSERT_FALSE(frames.empty());
-    for(const auto &frame : frames)
+    for(const auto &frame: frames)
     {
         *last_action = receiver.onMessage(frame);
     }
@@ -81,7 +81,7 @@ TEST(FixControllerTest, DetectsOutOfSyncSequenceGap)
     ASSERT_FALSE(acceptor_action.outbound_messages.empty());
 
     bool saw_resend_request = false;
-    for(const auto &msg : acceptor_action.outbound_messages)
+    for(const auto &msg: acceptor_action.outbound_messages)
     {
         if(msg.find("35=2") != std::string::npos)
         {
@@ -101,7 +101,7 @@ TEST(FixControllerTest, RejectsGarbledMessage)
     deliver(initiator.buildLogon(false), acceptor, &action);
     deliver(action.outbound_messages.front(), initiator, &action);
 
-    const std::string garbled = "8=FIX.4.4|9=10|35=0|34=2|10=000|";
+    const std::string       garbled = "8=FIX.4.4|9=10|35=0|34=2|10=000|";
     fix::Controller::Action garbled_action;
     deliver(garbled, acceptor, &garbled_action);
 
@@ -109,7 +109,7 @@ TEST(FixControllerTest, RejectsGarbledMessage)
     ASSERT_FALSE(garbled_action.outbound_messages.empty());
 
     bool saw_reject = false;
-    for(const auto &msg : garbled_action.outbound_messages)
+    for(const auto &msg: garbled_action.outbound_messages)
     {
         if(msg.find("35=3") != std::string::npos)
         {

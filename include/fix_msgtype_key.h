@@ -59,9 +59,9 @@ struct basic_fix_msg_key
      */
     explicit basic_fix_msg_key(std::string_view message) : hash_(0)
     {
-        char buffer[sizeof(std::size_t)] = {};
-        const std::string_view tag_value = extractTagValue(message);
-        const std::size_t count = (tag_value.size() < Width) ? tag_value.size() : Width;
+        char                   buffer[sizeof(std::size_t)] = {};
+        const std::string_view tag_value                   = extractTagValue(message);
+        const std::size_t      count                       = (tag_value.size() < Width) ? tag_value.size() : Width;
         if(count > 0)
         {
             std::memcpy(buffer, tag_value.data(), count);
@@ -81,9 +81,12 @@ struct basic_fix_msg_key
      * @brief Returns the computed key hash.
      * @return Hash value derived from tag `Tag`.
      */
-    std::size_t hash() const { return hash_; }
+    std::size_t hash() const
+    {
+        return hash_;
+    }
 
-private:
+    private:
     std::size_t hash_;
 
     static constexpr bool isDelimiter(const char c)
@@ -93,7 +96,7 @@ private:
 
     static std::string_view extractTagValue(const std::string_view message)
     {
-        char tag_buffer[12] = {};
+        char tag_buffer[12]      = {};
         const auto [end_ptr, ec] = std::to_chars(tag_buffer, tag_buffer + sizeof(tag_buffer), Tag);
         if(ec != std::errc{})
         {

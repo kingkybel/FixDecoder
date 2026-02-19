@@ -23,32 +23,31 @@
  * @author: Dieter J Kybelksties
  */
 
+#include "FIX42_decoder_map.h"
 #include "fix_decoder.h"
 #include "fix_dictionary.h"
-#include "FIX42_decoder_map.h"
 
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <gtest/gtest.h>
 #include <string>
+#include <unistd.h>
 #include <utility>
 #include <vector>
-
-#include <gtest/gtest.h>
-#include <unistd.h>
 
 namespace
 {
 
 class TempDir
 {
-public:
+    public:
     TempDir()
     {
-        const auto base = std::filesystem::temp_directory_path();
-        const std::string name = "fixdecoder_test_" + std::to_string(::getpid()) + "_" +
-                                 std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        const auto        base = std::filesystem::temp_directory_path();
+        const std::string name = "fixdecoder_test_" + std::to_string(::getpid()) + "_"
+                                 + std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
         path_ = base / name;
         std::filesystem::create_directories(path_);
     }
@@ -59,9 +58,12 @@ public:
         std::filesystem::remove_all(path_, ec);
     }
 
-    const std::filesystem::path &path() const { return path_; }
+    const std::filesystem::path &path() const
+    {
+        return path_;
+    }
 
-private:
+    private:
     std::filesystem::path path_;
 };
 
@@ -78,7 +80,7 @@ bool writeFile(const std::filesystem::path &path, const std::string &contents)
 
 std::vector<std::string> readMessageFile(const std::filesystem::path &path)
 {
-    std::ifstream in(path);
+    std::ifstream            in(path);
     std::vector<std::string> messages;
 
     std::string line;
@@ -96,7 +98,7 @@ std::vector<std::string> readMessageFile(const std::filesystem::path &path)
 
 bool hasNamedTag(const fix::DecodedMessage &decoded, std::uint32_t tag)
 {
-    for(const auto &field : decoded.fields)
+    for(const auto &field: decoded.fields)
     {
         if(field.tag == tag)
         {
@@ -122,7 +124,7 @@ bool looksValidDecode(const fix::DecodedMessage &decoded)
 std::string removeTag8(const std::string &message)
 {
     const std::string needle = "8=";
-    const std::size_t start = message.find(needle);
+    const std::size_t start  = message.find(needle);
     if(start == std::string::npos)
     {
         return message;
@@ -141,8 +143,8 @@ std::string removeTag8(const std::string &message)
 
 std::string breakMsgTypeTag(const std::string &message)
 {
-    std::string mutated = message;
-    const std::size_t pos = mutated.find("|35=");
+    std::string       mutated = message;
+    const std::size_t pos     = mutated.find("|35=");
     if(pos != std::string::npos)
     {
         mutated.replace(pos + 1, 3, "35-");
@@ -152,8 +154,8 @@ std::string breakMsgTypeTag(const std::string &message)
 
 std::string makeBeginTagNonNumeric(const std::string &message)
 {
-    std::string mutated = message;
-    const std::size_t pos = mutated.find("8=");
+    std::string       mutated = message;
+    const std::size_t pos     = mutated.find("8=");
     if(pos != std::string::npos)
     {
         mutated[pos] = 'X';
@@ -161,20 +163,19 @@ std::string makeBeginTagNonNumeric(const std::string &message)
     return mutated;
 }
 
-const char *kMinimalFix42 =
-    "<?xml version=\"1.0\"?>\n"
-    "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
-    "  <fields>\n"
-    "    <field number=\"8\" name=\"BeginString\" type=\"STRING\"/>\n"
-    "    <field number=\"35\" name=\"MsgType\" type=\"STRING\"/>\n"
-    "    <field number=\"55\" name=\"Symbol\" type=\"STRING\"/>\n"
-    "  </fields>\n"
-    "  <messages>\n"
-    "    <message name=\"TestMsg\" msgtype=\"T\" msgcat=\"app\">\n"
-    "      <field name=\"Symbol\" required=\"Y\"/>\n"
-    "    </message>\n"
-    "  </messages>\n"
-    "</fix>\n";
+const char *kMinimalFix42 = "<?xml version=\"1.0\"?>\n"
+                            "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
+                            "  <fields>\n"
+                            "    <field number=\"8\" name=\"BeginString\" type=\"STRING\"/>\n"
+                            "    <field number=\"35\" name=\"MsgType\" type=\"STRING\"/>\n"
+                            "    <field number=\"55\" name=\"Symbol\" type=\"STRING\"/>\n"
+                            "  </fields>\n"
+                            "  <messages>\n"
+                            "    <message name=\"TestMsg\" msgtype=\"T\" msgcat=\"app\">\n"
+                            "      <field name=\"Symbol\" required=\"Y\"/>\n"
+                            "    </message>\n"
+                            "  </messages>\n"
+                            "</fix>\n";
 
 struct SampleSet
 {
@@ -190,12 +191,12 @@ class SampleMessagesTest : public ::testing::TestWithParam<SampleSet>
 
 TEST(DictionaryTest, LoadsFileAndResolvesFieldAndMessage)
 {
-    TempDir temp;
+    TempDir    temp;
     const auto xml_path = temp.path() / "FIX42.xml";
     ASSERT_TRUE(writeFile(xml_path, kMinimalFix42));
 
     fix::Dictionary dict;
-    std::string error;
+    std::string     error;
     ASSERT_TRUE(dict.loadFromFile(xml_path.string(), &error)) << error;
 
     EXPECT_EQ(dict.beginString(), "FIX.4.2");
@@ -211,12 +212,12 @@ TEST(DictionaryTest, LoadsFileAndResolvesFieldAndMessage)
 
 TEST(DictionarySetTest, LoadsDirectoryAndFindsByBeginString)
 {
-    TempDir temp;
+    TempDir    temp;
     const auto xml_path = temp.path() / "FIX42.xml";
     ASSERT_TRUE(writeFile(xml_path, kMinimalFix42));
 
     fix::DictionarySet set;
-    std::string error;
+    std::string        error;
     ASSERT_TRUE(set.loadFromDirectory(temp.path().string(), &error)) << error;
 
     const fix::Dictionary *dict = set.findByBeginString("FIX.4.2");
@@ -225,21 +226,21 @@ TEST(DictionarySetTest, LoadsDirectoryAndFindsByBeginString)
 
 TEST(DecoderTest, AssignsFieldNamesFromDictionary)
 {
-    TempDir temp;
+    TempDir    temp;
     const auto xml_path = temp.path() / "FIX42.xml";
     ASSERT_TRUE(writeFile(xml_path, kMinimalFix42));
 
     fix::Decoder decoder;
-    std::string error;
+    std::string  error;
     ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), &error)) << error;
 
-    const std::string raw = "8=FIX.4.2|35=T|55=IBM|";
+    const std::string         raw     = "8=FIX.4.2|35=T|55=IBM|";
     const fix::DecodedMessage decoded = decoder.decode(raw);
 
     EXPECT_EQ(decoded.begin_string, "FIX.4.2");
 
     bool saw_symbol = false;
-    for(const auto &field : decoded.fields)
+    for(const auto &field: decoded.fields)
     {
         if(field.tag == 55)
         {
@@ -255,7 +256,7 @@ TEST(DecoderTest, DecodeObjectSupportsEnumLookup)
 {
     fix::Decoder decoder;
 
-    const std::string raw = "8=FIX.4.2|35=T|55=IBM|38=100|44=123.45|";
+    const std::string        raw     = "8=FIX.4.2|35=T|55=IBM|38=100|44=123.45|";
     const fix::DecodedObject decoded = decoder.decodeObject(raw);
 
     EXPECT_EQ(decoded.begin_string, "FIX.4.2");
@@ -281,10 +282,11 @@ TEST(DecoderTest, DecodeObjectSupportsChainedLookupFallback)
 {
     fix::Decoder decoder;
 
-    const std::string raw = "8=FIX.4.2|35=T|55=IBM|";
+    const std::string        raw     = "8=FIX.4.2|35=T|55=IBM|";
     const fix::DecodedObject decoded = decoder.decodeObject(raw);
 
-    const auto chained_symbol = decoded[fix::generated::fix42::FieldTag::kMsgType][fix::generated::fix42::FieldTag::kSymbol];
+    const auto chained_symbol =
+     decoded[fix::generated::fix42::FieldTag::kMsgType][fix::generated::fix42::FieldTag::kSymbol];
     ASSERT_TRUE(chained_symbol.exists());
     ASSERT_NE(chained_symbol.as<std::string_view>(), nullptr);
     EXPECT_EQ(*chained_symbol.as<std::string_view>(), "IBM");
@@ -303,18 +305,19 @@ TEST_P(SampleMessagesTest, ValidSamplesDecode)
     const auto sample = GetParam();
 
     fix::Decoder decoder;
-    std::string error;
-    ASSERT_TRUE(decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                                      &error))
-        << error;
+    std::string  error;
+    ASSERT_TRUE(
+     decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
+                                           &error))
+     << error;
 
     const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/valid" / sample.file_name;
-    const auto messages = readMessageFile(file_path);
+    const auto messages  = readMessageFile(file_path);
 
     ASSERT_FALSE(messages.empty()) << "No sample messages in " << file_path.string();
     EXPECT_GE(messages.size(), 10U) << "Sample set is too small: " << file_path.string();
 
-    for(const auto &message : messages)
+    for(const auto &message: messages)
     {
         const fix::DecodedMessage decoded = decoder.decode(message);
         EXPECT_TRUE(looksValidDecode(decoded)) << "Expected valid decode for: " << message;
@@ -327,25 +330,26 @@ TEST_P(SampleMessagesTest, MutatedSamplesFailDecodeChecks)
     const auto sample = GetParam();
 
     fix::Decoder decoder;
-    std::string error;
-    ASSERT_TRUE(decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                                      &error))
-        << error;
+    std::string  error;
+    ASSERT_TRUE(
+     decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
+                                           &error))
+     << error;
 
     const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/valid" / sample.file_name;
-    const auto messages = readMessageFile(file_path);
+    const auto messages  = readMessageFile(file_path);
 
     ASSERT_FALSE(messages.empty()) << "No sample messages in " << file_path.string();
 
-    for(const auto &message : messages)
+    for(const auto &message: messages)
     {
         const std::vector<std::string> invalid_messages = {
-            removeTag8(message),
-            breakMsgTypeTag(message),
-            makeBeginTagNonNumeric(message),
+         removeTag8(message),
+         breakMsgTypeTag(message),
+         makeBeginTagNonNumeric(message),
         };
 
-        for(const auto &invalid : invalid_messages)
+        for(const auto &invalid: invalid_messages)
         {
             const fix::DecodedMessage decoded = decoder.decode(invalid);
             EXPECT_FALSE(looksValidDecode(decoded)) << "Expected invalid decode for: " << invalid;
@@ -353,29 +357,26 @@ TEST_P(SampleMessagesTest, MutatedSamplesFailDecodeChecks)
     }
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    PerFixVersion,
-    SampleMessagesTest,
-    ::testing::Values(
-        SampleSet{"FIX40.messages", "FIX.4.0"},
-        SampleSet{"FIX41.messages", "FIX.4.1"},
-        SampleSet{"FIX42.messages", "FIX.4.2"},
-        SampleSet{"FIX43.messages", "FIX.4.3"},
-        SampleSet{"FIX44.messages", "FIX.4.4"},
-        SampleSet{"FIX50.messages", "FIXT.1.1"},
-        SampleSet{"FIX50SP1.messages", "FIXT.1.1"},
-        SampleSet{"FIX50SP2.messages", "FIXT.1.1"},
-        SampleSet{"FIXT11.messages", "FIXT.1.1"}
-    ),
-    [](const testing::TestParamInfo<SampleSet> &info) {
-        std::string name = info.param.file_name;
-        for(char &ch : name)
-        {
-            if(!std::isalnum(static_cast<unsigned char>(ch)))
-            {
-                ch = '_';
-            }
-        }
-        return name;
-    }
-);
+INSTANTIATE_TEST_SUITE_P(PerFixVersion,
+                         SampleMessagesTest,
+                         ::testing::Values(SampleSet{"FIX40.messages", "FIX.4.0"},
+                                           SampleSet{"FIX41.messages", "FIX.4.1"},
+                                           SampleSet{"FIX42.messages", "FIX.4.2"},
+                                           SampleSet{"FIX43.messages", "FIX.4.3"},
+                                           SampleSet{"FIX44.messages", "FIX.4.4"},
+                                           SampleSet{"FIX50.messages", "FIXT.1.1"},
+                                           SampleSet{"FIX50SP1.messages", "FIXT.1.1"},
+                                           SampleSet{"FIX50SP2.messages", "FIXT.1.1"},
+                                           SampleSet{"FIXT11.messages", "FIXT.1.1"}),
+                         [](const testing::TestParamInfo<SampleSet> &info)
+                         {
+                             std::string name = info.param.file_name;
+                             for(char &ch: name)
+                             {
+                                 if(!std::isalnum(static_cast<unsigned char>(ch)))
+                                 {
+                                     ch = '_';
+                                 }
+                             }
+                             return name;
+                         });

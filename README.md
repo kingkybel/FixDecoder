@@ -4,9 +4,10 @@ A C++ FIX decoding library and CLI tool.
 
 `FixDecoder` loads QuickFIX XML dictionaries, parses raw FIX messages, and decodes fields into typed C++ values.
 It can return:
+
 - `fix::DecodedMessage` for field-by-field inspection (`tag`, `name`, `type`, typed value)
 - `fix::DecodedObject` for enum/tag-indexed access (`msg[FieldTag::kX]`)
-It supports:
+  It supports:
 - `FIX.4.0`
 - `FIX.4.1`
 - `FIX.4.2`
@@ -16,6 +17,7 @@ It supports:
 - `FIXT.1.1` session/admin messages
 
 The project includes:
+
 - `fixdecoder` static library
 - `example_usage` CLI executable
 - `fix_controller_demo` CLI executable for session-level FIX protocol exchanges
@@ -26,22 +28,21 @@ The project includes:
 The decoder follows four steps:
 
 1. Dictionary loading
-- `fix::Dictionary` parses one QuickFIX XML file.
-- `fix::DictionarySet` loads all XML dictionaries in a directory.
-
+    - `fix::Dictionary` parses one QuickFIX XML file.
+    - `fix::DictionarySet` loads all XML dictionaries in a directory.
 2. Message normalization and parsing
-- `fix::Decoder` accepts SOH (`0x01`) and `|` separated FIX messages.
-- It normalizes delimiters and splits the message into `(tag, value)` fields.
-
+    - `fix::Decoder` accepts SOH (`0x01`) and `|` separated FIX messages.
+    - It normalizes delimiters and splits the message into `(tag, value)` fields.
 3. FIX version-first decoder selection
-- The decoder reads tag `8` (`BeginString`) first.
-- If tag `1128` (`ApplVerID`) is present, it maps that application version and uses it for decode-map selection.
-- It then selects the generated per-version decoder map in `data/generated/*_decoder_map.h`.
-
+    - The decoder reads tag `8` (`BeginString`) first.
+    - If tag `1128` (`ApplVerID`) is present, it maps that application version and uses it for decode-map selection.
+    - It then selects the generated per-version decoder map in `data/generated/*_decoder_map.h`.
 4. Typed decode and object materialization
-- Each tag is resolved through generated `decoderTagFor(tag)` and decoded to a typed C++ value (`bool`, `std::int64_t`, `float`, `double`, `std::string_view`).
-- `decode(...)` returns `fix::DecodedMessage` (ordered field list plus dictionary metadata).
-- `decodeObject(...)` returns `fix::DecodedObject` (map-like object for enum/tag lookup).
+    - Each tag is resolved through generated `decoderTagFor(tag)` and decoded to a typed C++ value (`bool`,
+      `std::int64_t`,
+      `float`, `double`, `std::string_view`).
+    - `decode(...)` returns `fix::DecodedMessage` (ordered field list plus dictionary metadata).
+    - `decodeObject(...)` returns `fix::DecodedObject` (map-like object for enum/tag lookup).
 
 ## Repository Layout
 
@@ -59,13 +60,16 @@ Build and install were tested on Ubuntu 24.04.
 ### Dependencies
 
 Required:
+
 - CMake `>= 3.26`
 - C++23 compiler (`g++` or `clang++`)
 
 Default behavior:
+
 - `tinyxml2` and `googletest` are fetched automatically with CMake `FetchContent`.
 
 If you want to use system-installed dependencies instead:
+
 - Configure with `-DFIXDECODER_FETCH_TINYXML2=OFF -DFIXDECODER_FETCH_GOOGLETEST=OFF`.
 
 ### Build
@@ -95,6 +99,7 @@ sudo cmake --install build
 ```
 
 Current install target installs public headers to:
+
 - `${INSTALL_PREFIX}/include/dkyb`
 
 Example include after install:
@@ -138,12 +143,14 @@ Run with explicit arguments:
 ```
 
 Argument order:
+
 - arg1: dictionary directory (default: `data/quickfix`)
 - arg2: message for basic `decode(...)` field dump
 - arg3: message for `decodeObject(...)` enum/tag lookup
 - arg4: message for `FIXT.1.1` + `ApplVerID` routing example
 
 The executable demonstrates:
+
 - `decode(...)` with field names and typed values
 - `decodeObject(...)` with enum-based lookup
 - `ApplVerID` (`1128`) driven selection under `FIXT.1.1`
@@ -193,22 +200,34 @@ cmake --build build --target fix_controller_demo --parallel $(nproc)
 
 Run locally in two terminals.
 
-Terminal 1 (acceptor/listener):
+Terminal 1 (exchange/listener):
 
 ```bash
-FIX_ROLE=acceptor FIX_PORT=5001 ./build/RelWithDebInfo/bin/fix_controller_demo
+FIX_ROLE=exchange FIX_PORT=5001 ./build/RelWithDebInfo/bin/fix_controller_demo
 ```
 
-Terminal 2 (initiator/connector):
+Terminal 2 (client/connector):
 
 ```bash
-FIX_ROLE=initiator FIX_HOST=127.0.0.1 FIX_PORT=5001 FIX_SCENARIO=handshake ./build/RelWithDebInfo/bin/fix_controller_demo
+FIX_ROLE=client FIX_HOST=127.0.0.1 FIX_PORT=5001 FIX_SCENARIO=handshake ./build/RelWithDebInfo/bin/fix_controller_demo
 ```
 
 Supported scenarios (`FIX_SCENARIO`):
+
 - `handshake` (default)
 - `out_of_sync`
 - `garbled`
+- `conversation` (client sends `FIX_CONVERSATION_MESSAGES` test requests and waits for heartbeat replies)
+- `performance` (same flow as `conversation`, with long `TestReqID` payload controlled by `FIX_PERF_PAYLOAD_SIZE`)
+
+Additional controller-demo environment variables:
+
+- `FIX_CONVERSATION_MESSAGES` (default `100`)
+- `FIX_PERF_PAYLOAD_SIZE` (default `512`)
+- `FIX_RUNTIME_SECONDS` (default `30`)
+- `FIX_BEGIN_STRING` (default `FIX.4.4`, e.g. `FIX.4.2` or `FIXT.1.1`)
+- `FIX_HOSTS` (comma-separated exchange hosts for client role)
+- `FIX_PORTS` (comma-separated ports for `FIX_HOSTS`, or a single port reused for all)
 
 ## Testing
 
@@ -219,6 +238,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 The test suite includes:
+
 - dictionary and decoder unit tests
 - data-driven tests over all supported FIX versions
 - invalid-message mutation tests derived from valid sample messages
@@ -227,13 +247,16 @@ The test suite includes:
 ## Session Controller and Docker Integration Tests
 
 The new session-level controller (`fix::Controller`) is available in:
+
 - `include/fix_controller.h`
 - `src/fix_controller.cc`
 
 Containerized peer-to-peer tests are defined in:
+
 - `docker/fix-controller/compose.yml`
-- `docker/fix-controller/Dockerfile.acceptor`
-- `docker/fix-controller/Dockerfile.initiator`
+- `docker/fix-controller/Dockerfile.builder`
+- `docker/fix-controller/Dockerfile.runtime`
+- `docker/fix-controller/run_all_scenarios.sh`
 - Detailed Docker test documentation: [`docker/fix-controller/README.md`](docker/fix-controller/README.md)
 
 Run FIX handshake containers:
@@ -248,6 +271,25 @@ Run out-of-sync or garbled scenarios:
 FIX_SCENARIO=out_of_sync docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
 FIX_SCENARIO=garbled docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
 ```
+
+Run longer request/reply conversations and performance loads:
+
+```bash
+FIX_SCENARIO=conversation docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+FIX_SCENARIO=performance FIX_CONVERSATION_MESSAGES=300 FIX_PERF_PAYLOAD_SIZE=2048 FIX_RUNTIME_SECONDS=60 docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+```
+
+Run one client against multiple exchanges and enable a second client:
+
+```bash
+docker compose -f docker/fix-controller/compose.yml --profile multi-exchange up --build --abort-on-container-exit
+docker compose -f docker/fix-controller/compose.yml --profile multi-client up --build --abort-on-container-exit
+docker compose -f docker/fix-controller/compose.yml --profile multi-mesh up --build --abort-on-container-exit
+```
+
+Conversation sample data:
+
+- `data/samples/conversations/FIX44_conversation_100.messages` (100 valid FIX.4.4 conversation messages)
 
 ## Notes and Current Scope
 

@@ -37,8 +37,8 @@
 #include "decoder_tag.h"
 
 #include <algorithm>
-#include <charconv>
 #include <cctype>
+#include <charconv>
 #include <cstdint>
 #include <string_view>
 
@@ -48,146 +48,146 @@ namespace fix
 namespace
 {
 
-std::string applicationVersionIdToBeginString(const std::string &value)
-{
-    if(value == "2")
+    std::string applicationVersionIdToBeginString(const std::string &value)
     {
-        return "FIX.4.0";
-    }
-    if(value == "3")
-    {
-        return "FIX.4.1";
-    }
-    if(value == "4")
-    {
-        return "FIX.4.2";
-    }
-    if(value == "5")
-    {
-        return "FIX.4.3";
-    }
-    if(value == "6")
-    {
-        return "FIX.4.4";
-    }
-    if(value == "7" || value == "8" || value == "9")
-    {
-        return "FIX.5.0";
-    }
-
-    return value;
-}
-
-std::string toUpperCopy(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::toupper(c));
-    });
-    return value;
-}
-
-std::string_view toView(Decoder::ValueIterator begin, Decoder::ValueIterator end)
-{
-    if(begin == end)
-    {
-        return std::string_view{};
-    }
-    return std::string_view(&*begin, static_cast<std::size_t>(end - begin));
-}
-
-using GeneratedDecoderTag = generated::DecoderTag;
-using DecoderTagResolver = GeneratedDecoderTag (*)(std::uint32_t);
-
-struct VersionDecoderSelection
-{
-    std::string        begin_string;
-    DecoderTagResolver resolver = nullptr;
-};
-
-std::string extractTagValue(const std::string_view message, const int wanted_tag)
-{
-    static constexpr char soh = 0x01;
-    std::size_t start = 0;
-    while(start < message.size())
-    {
-        const std::size_t end = message.find(soh, start);
-        const std::size_t token_end = (end == std::string_view::npos) ? message.size() : end;
-        const std::size_t eq_pos = message.find('=', start);
-
-        if(eq_pos != std::string_view::npos && eq_pos < token_end)
+        if(value == "2")
         {
-            int parsed_tag = 0;
-            const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, parsed_tag);
-            if(ec == std::errc{} && ptr == message.data() + eq_pos && parsed_tag == wanted_tag)
+            return "FIX.4.0";
+        }
+        if(value == "3")
+        {
+            return "FIX.4.1";
+        }
+        if(value == "4")
+        {
+            return "FIX.4.2";
+        }
+        if(value == "5")
+        {
+            return "FIX.4.3";
+        }
+        if(value == "6")
+        {
+            return "FIX.4.4";
+        }
+        if(value == "7" || value == "8" || value == "9")
+        {
+            return "FIX.5.0";
+        }
+
+        return value;
+    }
+
+    std::string toUpperCopy(std::string value)
+    {
+        std::ranges::transform(value,
+                               value.begin(),
+                               [](const unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        return value;
+    }
+
+    std::string_view toView(const Decoder::ValueIterator begin, const Decoder::ValueIterator end)
+    {
+        if(begin == end)
+        {
+            return std::string_view{};
+        }
+        return std::string_view(&*begin, static_cast<std::size_t>(end - begin));
+    }
+
+    using GeneratedDecoderTag = generated::DecoderTag;
+    using DecoderTagResolver  = GeneratedDecoderTag (*)(std::uint32_t);
+
+    struct VersionDecoderSelection
+    {
+        std::string        begin_string;
+        DecoderTagResolver resolver = nullptr;
+    };
+
+    std::string extractTagValue(const std::string_view message, const int wanted_tag)
+    {
+        static constexpr char soh   = 0x01;
+        std::size_t           start = 0;
+        while(start < message.size())
+        {
+            const std::size_t end       = message.find(soh, start);
+            const std::size_t token_end = (end == std::string_view::npos) ? message.size() : end;
+            const std::size_t eq_pos    = message.find('=', start);
+
+            if(eq_pos != std::string_view::npos && eq_pos < token_end)
             {
-                const std::size_t value_len = token_end - (eq_pos + 1);
-                return std::string(message.substr(eq_pos + 1, value_len));
+                int parsed_tag       = 0;
+                const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, parsed_tag);
+                if(ec == std::errc{} && ptr == message.data() + eq_pos && parsed_tag == wanted_tag)
+                {
+                    const std::size_t value_len = token_end - (eq_pos + 1);
+                    return std::string(message.substr(eq_pos + 1, value_len));
+                }
             }
-        }
 
-        if(end == std::string_view::npos)
+            if(end == std::string_view::npos)
+            {
+                break;
+            }
+            start = end + 1;
+        }
+        return {};
+    }
+
+    VersionDecoderSelection selectVersionDecoder(const std::string_view message)
+    {
+        std::string       begin_string = extractTagValue(message, 8);
+        const std::string appl_ver_id  = extractTagValue(message, 1128);
+
+        std::string effective_begin = std::move(begin_string);
+        if(!appl_ver_id.empty())
         {
-            break;
+            effective_begin = applicationVersionIdToBeginString(appl_ver_id);
         }
-        start = end + 1;
-    }
-    return {};
-}
 
-VersionDecoderSelection selectVersionDecoder(const std::string_view message)
-{
-    std::string begin_string = extractTagValue(message, 8);
-    const std::string appl_ver_id = extractTagValue(message, 1128);
+        DecoderTagResolver resolver = nullptr;
+        if(effective_begin == generated::fix40::kBeginString)
+        {
+            resolver = generated::fix40::decoderTagFor;
+        }
+        else if(effective_begin == generated::fix41::kBeginString)
+        {
+            resolver = generated::fix41::decoderTagFor;
+        }
+        else if(effective_begin == generated::fix42::kBeginString)
+        {
+            resolver = generated::fix42::decoderTagFor;
+        }
+        else if(effective_begin == generated::fix43::kBeginString)
+        {
+            resolver = generated::fix43::decoderTagFor;
+        }
+        else if(effective_begin == generated::fix44::kBeginString)
+        {
+            resolver = generated::fix44::decoderTagFor;
+        }
+        else if(effective_begin == generated::fix50::kBeginString)
+        {
+            resolver = generated::fix50::decoderTagFor;
+        }
+        else if(effective_begin == generated::fixt11::kBeginString)
+        {
+            resolver = generated::fixt11::decoderTagFor;
+        }
 
-    std::string effective_begin = std::move(begin_string);
-    if(!appl_ver_id.empty())
-    {
-        effective_begin = applicationVersionIdToBeginString(appl_ver_id);
-    }
-
-    DecoderTagResolver resolver = nullptr;
-    if(effective_begin == generated::fix40::kBeginString)
-    {
-        resolver = generated::fix40::decoderTagFor;
-    }
-    else if(effective_begin == generated::fix41::kBeginString)
-    {
-        resolver = generated::fix41::decoderTagFor;
-    }
-    else if(effective_begin == generated::fix42::kBeginString)
-    {
-        resolver = generated::fix42::decoderTagFor;
-    }
-    else if(effective_begin == generated::fix43::kBeginString)
-    {
-        resolver = generated::fix43::decoderTagFor;
-    }
-    else if(effective_begin == generated::fix44::kBeginString)
-    {
-        resolver = generated::fix44::decoderTagFor;
-    }
-    else if(effective_begin == generated::fix50::kBeginString)
-    {
-        resolver = generated::fix50::decoderTagFor;
-    }
-    else if(effective_begin == generated::fixt11::kBeginString)
-    {
-        resolver = generated::fixt11::decoderTagFor;
+        return VersionDecoderSelection{std::move(effective_begin), resolver};
     }
 
-    return VersionDecoderSelection{std::move(effective_begin), resolver};
-}
+    std::uint8_t toDecoderTagValue(const GeneratedDecoderTag tag)
+    {
+        return static_cast<std::uint8_t>(tag);
+    }
 
-std::uint8_t toDecoderTagValue(const GeneratedDecoderTag tag)
-{
-    return static_cast<std::uint8_t>(tag);
-}
-
-const DecodedObjectNode::Value &missingLookupValue()
-{
-    static const DecodedObjectNode::Value missing_value{};
-    return missing_value;
-}
+    const DecodedObjectNode::Value &missingLookupValue()
+    {
+        static const DecodedObjectNode::Value missing_value{};
+        return missing_value;
+    }
 
 }  // namespace
 
@@ -236,55 +236,63 @@ const DecodedObjectLookup::Value &DecodedObjectLookup::value() const
 
 Decoder::Decoder()
 {
-    registerTypeDecoder("BOOLEAN", [](ValueIterator begin, ValueIterator end) -> DecodedValue {
-        const std::string_view value = toView(begin, end);
-        if(value == "Y" || value == "y" || value == "1" || value == "TRUE" || value == "true")
-        {
-            return true;
-        }
-        if(value == "N" || value == "n" || value == "0" || value == "FALSE" || value == "false")
-        {
-            return false;
-        }
-        return std::monostate{};
-    });
+    registerTypeDecoder("BOOLEAN",
+                        [](ValueIterator begin, ValueIterator end) -> DecodedValue
+                        {
+                            const std::string_view value = toView(begin, end);
+                            if(value == "Y" || value == "y" || value == "1" || value == "TRUE" || value == "true")
+                            {
+                                return true;
+                            }
+                            if(value == "N" || value == "n" || value == "0" || value == "FALSE" || value == "false")
+                            {
+                                return false;
+                            }
+                            return std::monostate{};
+                        });
 
-    registerTypeDecoder("INT", [](ValueIterator begin, ValueIterator end) -> DecodedValue {
-        const std::string_view value = toView(begin, end);
-        std::int64_t parsed = 0;
-        const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if(ec == std::errc{} && ptr == value.data() + value.size())
-        {
-            return parsed;
-        }
-        return std::monostate{};
-    });
+    registerTypeDecoder("INT",
+                        [](ValueIterator begin, ValueIterator end) -> DecodedValue
+                        {
+                            const std::string_view value  = toView(begin, end);
+                            std::int64_t           parsed = 0;
+                            const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+                            if(ec == std::errc{} && ptr == value.data() + value.size())
+                            {
+                                return parsed;
+                            }
+                            return std::monostate{};
+                        });
 
     registerTypeDecoder("NUMINGROUP", value_decoders_["INT"]);
     registerTypeDecoder("SEQNUM", value_decoders_["INT"]);
     registerTypeDecoder("LENGTH", value_decoders_["INT"]);
 
-    registerTypeDecoder("FLOAT", [](ValueIterator begin, ValueIterator end) -> DecodedValue {
-        const std::string_view value = toView(begin, end);
-        float parsed = 0.0F;
-        const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if(ec == std::errc{} && ptr == value.data() + value.size())
-        {
-            return parsed;
-        }
-        return std::monostate{};
-    });
+    registerTypeDecoder("FLOAT",
+                        [](ValueIterator begin, ValueIterator end) -> DecodedValue
+                        {
+                            const std::string_view value  = toView(begin, end);
+                            float                  parsed = 0.0F;
+                            const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+                            if(ec == std::errc{} && ptr == value.data() + value.size())
+                            {
+                                return parsed;
+                            }
+                            return std::monostate{};
+                        });
 
-    registerTypeDecoder("DOUBLE", [](ValueIterator begin, ValueIterator end) -> DecodedValue {
-        const std::string_view value = toView(begin, end);
-        double parsed = 0.0;
-        const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if(ec == std::errc{} && ptr == value.data() + value.size())
-        {
-            return parsed;
-        }
-        return std::monostate{};
-    });
+    registerTypeDecoder("DOUBLE",
+                        [](ValueIterator begin, ValueIterator end) -> DecodedValue
+                        {
+                            const std::string_view value  = toView(begin, end);
+                            double                 parsed = 0.0;
+                            const auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+                            if(ec == std::errc{} && ptr == value.data() + value.size())
+                            {
+                                return parsed;
+                            }
+                            return std::monostate{};
+                        });
 
     registerTypeDecoder("AMT", value_decoders_["DOUBLE"]);
     registerTypeDecoder("PRICE", value_decoders_["DOUBLE"]);
@@ -292,9 +300,8 @@ Decoder::Decoder()
     registerTypeDecoder("PERCENTAGE", value_decoders_["DOUBLE"]);
     registerTypeDecoder("QTY", value_decoders_["DOUBLE"]);
 
-    registerTypeDecoder("STRING", [](ValueIterator begin, ValueIterator end) -> DecodedValue {
-        return toView(begin, end);
-    });
+    registerTypeDecoder("STRING",
+                        [](ValueIterator begin, ValueIterator end) -> DecodedValue { return toView(begin, end); });
 
     registerTypeDecoder("CHAR", value_decoders_["STRING"]);
     registerTypeDecoder("MULTIPLECHARVALUE", value_decoders_["STRING"]);
@@ -311,13 +318,13 @@ Decoder::Decoder()
     registerTypeDecoder("COUNTRY", value_decoders_["STRING"]);
     registerTypeDecoder("LANGUAGE", value_decoders_["STRING"]);
 
-    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kBool)] = value_decoders_["BOOLEAN"];
-    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kInt64)] = value_decoders_["INT"];
-    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kFloat)] = value_decoders_["FLOAT"];
-    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kDouble)] = value_decoders_["DOUBLE"];
-    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kString)] = value_decoders_["STRING"];
+    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kBool)]       = value_decoders_["BOOLEAN"];
+    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kInt64)]      = value_decoders_["INT"];
+    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kFloat)]      = value_decoders_["FLOAT"];
+    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kDouble)]     = value_decoders_["DOUBLE"];
+    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kString)]     = value_decoders_["STRING"];
     decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kGroupCount)] = value_decoders_["INT"];
-    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kRawData)] = value_decoders_["STRING"];
+    decoder_tag_decoders_[toDecoderTagValue(GeneratedDecoderTag::kRawData)]    = value_decoders_["STRING"];
 }
 
 void Decoder::registerTypeDecoder(std::string type_name, ValueDecoder decoder)
@@ -328,7 +335,7 @@ void Decoder::registerTypeDecoder(std::string type_name, ValueDecoder decoder)
 
 std::string Decoder::normalizeMessage(const std::string &raw)
 {
-    static constexpr char soh = 0x01;
+    static constexpr char soh  = 0x01;
     static constexpr char pipe = 0x7c;
 
     if(raw.find(soh) == std::string::npos && raw.find(pipe) != std::string::npos)
@@ -349,13 +356,13 @@ std::vector<Decoder::ParsedField> Decoder::splitTags(const std::string_view mess
     std::size_t start = 0;
     while(start < message.size())
     {
-        const std::size_t end = message.find(soh, start);
+        const std::size_t end       = message.find(soh, start);
         const std::size_t token_end = (end == std::string_view::npos) ? message.size() : end;
-        const std::size_t eq_pos = message.find('=', start);
+        const std::size_t eq_pos    = message.find('=', start);
 
         if(eq_pos != std::string_view::npos && eq_pos < token_end)
         {
-            int tag = 0;
+            int tag              = 0;
             const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, tag);
             if(ec == std::errc{} && ptr == message.data() + eq_pos && tag > 0)
             {
@@ -373,12 +380,13 @@ std::vector<Decoder::ParsedField> Decoder::splitTags(const std::string_view mess
     return result;
 }
 
-const Dictionary *Decoder::selectDictionary(const std::string_view message, const std::vector<ParsedField> &fields) const
+const Dictionary *Decoder::selectDictionary(const std::string_view          message,
+                                            const std::vector<ParsedField> &fields) const
 {
     std::string begin_string;
     std::string appl_ver_id;
 
-    for(const auto &field : fields)
+    for(const auto &field: fields)
     {
         const std::string_view value(message.data() + field.value_begin, field.value_end - field.value_begin);
         if(field.tag == 8)
@@ -408,9 +416,8 @@ const Dictionary *Decoder::selectDictionary(const std::string_view message, cons
     return nullptr;
 }
 
-Decoder::DecodedValue Decoder::decodeTypedValue(const std::uint8_t decoder_tag,
-                                                const ValueIterator begin,
-                                                const ValueIterator end) const
+Decoder::DecodedValue
+ Decoder::decodeTypedValue(const std::uint8_t decoder_tag, const ValueIterator begin, const ValueIterator end) const
 {
     const auto it = decoder_tag_decoders_.find(decoder_tag);
     if(it != decoder_tag_decoders_.end())
@@ -427,12 +434,11 @@ Decoder::DecodedValue Decoder::decodeTypedValue(const std::uint8_t decoder_tag,
     return std::monostate{};
 }
 
-Decoder::DecodedValue Decoder::decodeTypedValue(const std::string &type,
-                                                const ValueIterator begin,
-                                                const ValueIterator end) const
+Decoder::DecodedValue
+ Decoder::decodeTypedValue(const std::string &type, const ValueIterator begin, const ValueIterator end) const
 {
     const std::string key = toUpperCopy(type);
-    const auto it = value_decoders_.find(key);
+    const auto        it  = value_decoders_.find(key);
     if(it != value_decoders_.end())
     {
         return it->second(begin, end);
@@ -453,16 +459,16 @@ DecodedMessage Decoder::decode(const std::string &raw) const
 
     decoded.normalized_message = normalizeMessage(raw);
     const std::string_view message(decoded.normalized_message);
-    const auto fields = splitTags(message);
-    const auto version_decoder = selectVersionDecoder(message);
-    const Dictionary *dict = selectDictionary(message, fields);
+    const auto             fields          = splitTags(message);
+    const auto             version_decoder = selectVersionDecoder(message);
+    const Dictionary      *dict            = selectDictionary(message, fields);
 
     decoded.fields.reserve(fields.size());
 
-    for(const auto &parsed : fields)
+    for(const auto &parsed: fields)
     {
         DecodedField field;
-        field.tag = parsed.tag;
+        field.tag   = parsed.tag;
         field.value = message.substr(parsed.value_begin, parsed.value_end - parsed.value_begin);
 
         if(parsed.tag == 8)
@@ -484,11 +490,11 @@ DecodedMessage Decoder::decode(const std::string &raw) const
         }
 
         const auto begin = message.begin() + static_cast<std::ptrdiff_t>(parsed.value_begin);
-        const auto end = message.begin() + static_cast<std::ptrdiff_t>(parsed.value_end);
+        const auto end   = message.begin() + static_cast<std::ptrdiff_t>(parsed.value_end);
         if(version_decoder.resolver)
         {
             const auto decoder_tag = version_decoder.resolver(parsed.tag);
-            field.typed_value = decodeTypedValue(toDecoderTagValue(decoder_tag), begin, end);
+            field.typed_value      = decodeTypedValue(toDecoderTagValue(decoder_tag), begin, end);
         }
         else
         {
@@ -507,15 +513,15 @@ DecodedObject Decoder::decodeObject(const std::string &raw) const
 
     decoded.normalized_message = normalizeMessage(raw);
     const std::string_view message(decoded.normalized_message);
-    const auto fields = splitTags(message);
-    auto version_decoder = selectVersionDecoder(message);
+    const auto             fields          = splitTags(message);
+    auto                   version_decoder = selectVersionDecoder(message);
 
     if(!version_decoder.begin_string.empty())
     {
         decoded.begin_string = std::move(version_decoder.begin_string);
     }
 
-    for(const auto &parsed : fields)
+    for(const auto &parsed: fields)
     {
         const std::string_view value = message.substr(parsed.value_begin, parsed.value_end - parsed.value_begin);
         if(parsed.tag == 8 && decoded.begin_string.empty())
@@ -528,13 +534,13 @@ DecodedObject Decoder::decodeObject(const std::string &raw) const
         }
 
         const auto begin = message.begin() + static_cast<std::ptrdiff_t>(parsed.value_begin);
-        const auto end = message.begin() + static_cast<std::ptrdiff_t>(parsed.value_end);
+        const auto end   = message.begin() + static_cast<std::ptrdiff_t>(parsed.value_end);
 
         DecodedValue typed_value = std::monostate{};
         if(version_decoder.resolver)
         {
             const auto decoder_tag = version_decoder.resolver(parsed.tag);
-            typed_value = decodeTypedValue(toDecoderTagValue(decoder_tag), begin, end);
+            typed_value            = decodeTypedValue(toDecoderTagValue(decoder_tag), begin, end);
         }
         else
         {

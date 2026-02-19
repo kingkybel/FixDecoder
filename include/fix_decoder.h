@@ -34,7 +34,6 @@
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -64,11 +63,11 @@ struct DecodedField
 struct DecodedMessage
 {
     /** Value of tag 8 (BeginString), if present. */
-    std::string              begin_string;
+    std::string begin_string;
     /** Value of tag 35 (MsgType), if present. */
-    std::string              msg_type;
+    std::string msg_type;
     /** Normalized message storage that backs all field value string_views. */
-    std::string              normalized_message;
+    std::string normalized_message;
     /** All parsed fields in message order. */
     std::vector<DecodedField> fields;
 };
@@ -91,7 +90,7 @@ struct DecodedObjectNode
  */
 class DecodedObjectLookup
 {
-public:
+    public:
     using Value = DecodedObjectNode::Value;
 
     /**
@@ -107,7 +106,7 @@ public:
      */
     template<typename EnumTag>
     DecodedObjectLookup operator[](EnumTag tag) const
-        requires(std::is_enum_v<EnumTag>)
+    requires(std::is_enum_v<EnumTag>)
     {
         using Underlying = std::underlying_type_t<EnumTag>;
         return (*this)[static_cast<std::uint32_t>(static_cast<Underlying>(tag))];
@@ -116,7 +115,11 @@ public:
     /**
      * @brief Indicates whether this lookup resolves to an existing node.
      */
-    bool exists() const { return node_ != nullptr; }
+    bool exists() const
+    {
+        return node_ != nullptr;
+    }
+
     /**
      * @brief Returns the node value, or `std::monostate` if missing.
      */
@@ -133,12 +136,12 @@ public:
         return std::get_if<T>(&value());
     }
 
-private:
+    private:
     friend struct DecodedObject;
 
     DecodedObjectLookup(const std::unordered_map<std::uint32_t, DecodedObjectNode> *root, const DecodedObjectNode *node)
-        : root_(root),
-          node_(node)
+    : root_(root)
+    , node_(node)
     {
     }
 
@@ -169,7 +172,7 @@ struct DecodedObject
      */
     template<typename EnumTag>
     DecodedObjectLookup operator[](EnumTag tag) const
-        requires(std::is_enum_v<EnumTag>)
+    requires(std::is_enum_v<EnumTag>)
     {
         using Underlying = std::underlying_type_t<EnumTag>;
         return (*this)[static_cast<std::uint32_t>(static_cast<Underlying>(tag))];
@@ -181,10 +184,10 @@ struct DecodedObject
  */
 class Decoder
 {
-public:
+    public:
     using ValueIterator = std::string_view::const_iterator;
-    using DecodedValue = std::variant<std::monostate, bool, std::int64_t, float, double, std::string_view>;
-    using ValueDecoder = std::function<DecodedValue(ValueIterator, ValueIterator)>;
+    using DecodedValue  = std::variant<std::monostate, bool, std::int64_t, float, double, std::string_view>;
+    using ValueDecoder  = std::function<DecodedValue(ValueIterator, ValueIterator)>;
 
     Decoder();
 
@@ -219,23 +222,23 @@ public:
      */
     void registerTypeDecoder(std::string type_name, ValueDecoder decoder);
 
-private:
+    private:
     struct ParsedField
     {
-        std::uint32_t tag = 0;
-        std::size_t value_begin = 0;
-        std::size_t value_end = 0;
+        std::uint32_t tag         = 0;
+        std::size_t   value_begin = 0;
+        std::size_t   value_end   = 0;
     };
 
-    DictionarySet dictionaries_;
-    std::unordered_map<std::string, ValueDecoder> value_decoders_;
+    DictionarySet                                  dictionaries_;
+    std::unordered_map<std::string, ValueDecoder>  value_decoders_;
     std::unordered_map<std::uint8_t, ValueDecoder> decoder_tag_decoders_;
 
-    static std::string normalizeMessage(const std::string &raw);
+    static std::string              normalizeMessage(const std::string &raw);
     static std::vector<ParsedField> splitTags(std::string_view message);
     const Dictionary *selectDictionary(std::string_view message, const std::vector<ParsedField> &fields) const;
-    DecodedValue decodeTypedValue(std::uint8_t decoder_tag, ValueIterator begin, ValueIterator end) const;
-    DecodedValue decodeTypedValue(const std::string &type, ValueIterator begin, ValueIterator end) const;
+    DecodedValue      decodeTypedValue(std::uint8_t decoder_tag, ValueIterator begin, ValueIterator end) const;
+    DecodedValue      decodeTypedValue(const std::string &type, ValueIterator begin, ValueIterator end) const;
 };
 
 }  // namespace fix

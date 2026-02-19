@@ -24,19 +24,19 @@
  */
 
 #include "fix_controller.h"
+#include "fix_socket_connection.h"
 
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
+#include <algorithm>
+#include <cctype>
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
-#include <optional>
 #include <string>
+#include <string_view>
+#include <sys/socket.h>
 #include <thread>
 #include <vector>
 
@@ -73,88 +73,344 @@ int envOrDefaultInt(const char *name, const int fallback)
     }
 }
 
-int listenSocket(const int port)
+std::string longToken(const std::string &prefix, const int index, const int payload_size)
 {
-    const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    if(fd < 0)
+    std::string token = prefix + '-' + std::to_string(index) + '-';
+    if(payload_size <= 0)
     {
-        return -1;
+        return token;
     }
 
-    int reuse = 1;
-    (void)::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(static_cast<std::uint16_t>(port));
-
-    if(::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0)
+    static constexpr std::string_view pattern = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    token.reserve(static_cast<std::size_t>(payload_size));
+    for(int i = 0; static_cast<int>(token.size()) < payload_size; ++i)
     {
-        ::close(fd);
-        return -1;
+        token.push_back(pattern[static_cast<std::size_t>(i) % pattern.size()]);
     }
-
-    if(::listen(fd, 1) != 0)
-    {
-        ::close(fd);
-        return -1;
-    }
-    return fd;
+    return token;
 }
 
-int connectSocket(const std::string &host, const int port)
+std::string trimCopy(std::string value)
 {
-    addrinfo hints{};
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    addrinfo *res = nullptr;
-    const int rc = ::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res);
-    if(rc != 0 || res == nullptr)
+    const auto is_not_space = [](const unsigned char ch) { return !std::isspace(ch); };
+    const auto begin        = std::find_if(value.begin(), value.end(), is_not_space);
+    const auto end          = std::find_if(value.rbegin(), value.rend(), is_not_space).base();
+    if(begin >= end)
     {
-        return -1;
+        return {};
     }
+    return std::string(begin, end);
+}
 
-    int fd = -1;
-    for(addrinfo *it = res; it != nullptr; it = it->ai_next)
+std::vector<std::string> splitCsv(const std::string &input)
+{
+    std::vector<std::string> tokens;
+    std::size_t              start = 0;
+    while(start <= input.size())
     {
-        fd = ::socket(it->ai_family, it->ai_socktype, it->ai_protocol);
-        if(fd < 0)
+        const std::size_t comma = input.find(',', start);
+        const std::size_t end   = (comma == std::string::npos) ? input.size() : comma;
+        const std::string item  = trimCopy(input.substr(start, end - start));
+        if(!item.empty())
         {
-            continue;
+            tokens.push_back(item);
         }
-        if(::connect(fd, it->ai_addr, it->ai_addrlen) == 0)
+        if(comma == std::string::npos)
         {
             break;
         }
-        ::close(fd);
-        fd = -1;
+        start = comma + 1;
     }
-
-    ::freeaddrinfo(res);
-    return fd;
+    return tokens;
 }
 
-bool sendAll(const int fd, const std::string &message)
+std::vector<int> splitCsvInts(const std::string &input)
 {
-    std::size_t total = 0;
-    while(total < message.size())
+    std::vector<int> values;
+    for(const std::string &token: splitCsv(input))
     {
-        const auto written = ::send(fd, message.data() + total, message.size() - total, 0);
-        if(written <= 0)
+        try
         {
-            return false;
+            values.push_back(std::stoi(token));
         }
-        total += static_cast<std::size_t>(written);
+        catch(...)
+        {
+        }
     }
-    return true;
+    return values;
+}
+
+void printSafeFix(const std::string &message);
+
+int runSingleSession(const std::string &role,
+                     const std::string &host,
+                     const int          port,
+                     const std::string &begin_string,
+                     const std::string &scenario,
+                     const int          conversation_messages,
+                     const int          perf_payload_size,
+                     const int          runtime_seconds)
+{
+    const bool client_role        = (role == "client");
+    const bool load_test_scenario = (scenario == "conversation" || scenario == "performance");
+
+    fix::Controller controller(client_role ? "CLIENT" : "EXCHANGE",
+                               client_role ? "EXCHANGE" : "CLIENT",
+                               client_role ? fix::Controller::Role::kInitiator : fix::Controller::Role::kAcceptor,
+                               begin_string);
+
+    fix::SocketConnection connection;
+    if(client_role)
+    {
+        for(int attempt = 0; attempt < 30 && !connection.valid(); ++attempt)
+        {
+            if(!connection.connectTo(host, port))
+            {
+                std::this_thread::sleep_for(1s);
+            }
+        }
+        if(!connection.valid())
+        {
+            std::cerr << "Unable to connect to " << host << ':' << port << '\n';
+            return 2;
+        }
+        const std::string logon = controller.buildLogon(false);
+        std::cout << "[client] -> ";
+        printSafeFix(logon);
+        if(!connection.sendAll(logon))
+        {
+            return 3;
+        }
+    }
+    else
+    {
+        fix::SocketConnection listener;
+        if(!listener.listenOn(port))
+        {
+            std::cerr << "Unable to listen on port " << port << '\n';
+            return 2;
+        }
+        auto accepted = listener.acceptClient();
+        listener.close();
+        if(!accepted.has_value())
+        {
+            std::cerr << "Accept failed: " << fix::SocketConnection::errorText(errno) << '\n';
+            return 2;
+        }
+        connection = std::move(*accepted);
+    }
+
+    bool handshake_complete = false;
+    bool scenario_sent      = false;
+    bool scenario_complete  = !(load_test_scenario && client_role);
+    int  sent_requests      = 0;
+    int  received_replies   = 0;
+    auto deadline           = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
+
+    while(std::chrono::steady_clock::now() < deadline)
+    {
+        char                                       buffer[2048];
+        const fix::SocketConnection::ReceiveResult received = connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
+        if(received.bytes_read > 0)
+        {
+            const auto frames =
+             controller.consume(std::string_view(buffer, static_cast<std::size_t>(received.bytes_read)));
+            for(const auto &frame: frames)
+            {
+                const auto action = controller.onMessage(frame);
+                std::cout << '[' << role << "] <- ";
+                printSafeFix(frame);
+                for(const auto &event: action.events)
+                {
+                    std::cout << '[' << role << "] event: " << event << '\n';
+                    if(client_role && load_test_scenario && event == "heartbeat")
+                    {
+                        ++received_replies;
+                    }
+                }
+                for(const auto &out: action.outbound_messages)
+                {
+                    std::cout << '[' << role << "] -> ";
+                    printSafeFix(out);
+                    if(!connection.sendAll(out))
+                    {
+                        return 4;
+                    }
+                }
+            }
+        }
+        else if(received.bytes_read == 0)
+        {
+            break;
+        }
+        else if(received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK)
+        {
+            std::cerr << "recv failed: " << fix::SocketConnection::errorText(received.error_number) << '\n';
+            break;
+        }
+
+        if(controller.state() == fix::Controller::SessionState::kEstablished)
+        {
+            handshake_complete = true;
+            if(client_role && !scenario_sent)
+            {
+                if(scenario == "out_of_sync")
+                {
+                    controller.skipOutboundSequence(4);
+                    const std::string out_of_sync_heartbeat = controller.buildHeartbeat();
+                    std::cout << "[client] -> ";
+                    printSafeFix(out_of_sync_heartbeat);
+                    if(!connection.sendAll(out_of_sync_heartbeat))
+                    {
+                        return 4;
+                    }
+                }
+                else if(scenario == "garbled")
+                {
+                    const std::string garbled = "8=FIX.4.4|9=10|35=0|34=2|10=000|";
+                    std::cout << "[client] -> " << "garbled_frame\n";
+                    if(!connection.sendAll(garbled))
+                    {
+                        return 4;
+                    }
+                }
+                else if(load_test_scenario)
+                {
+                    for(int i = 0; i < conversation_messages; ++i)
+                    {
+                        const std::string test_req_id = longToken("LOAD", i + 1, perf_payload_size);
+                        const std::string request     = controller.buildTestRequest(test_req_id);
+                        std::cout << "[client] -> ";
+                        printSafeFix(request);
+                        if(!connection.sendAll(request))
+                        {
+                            return 4;
+                        }
+                        ++sent_requests;
+                    }
+                }
+                scenario_sent = true;
+            }
+        }
+
+        if(scenario == "handshake" && handshake_complete)
+        {
+            scenario_complete = true;
+            break;
+        }
+
+        if(controller.state() == fix::Controller::SessionState::kTerminated)
+        {
+            break;
+        }
+
+        if(load_test_scenario && scenario_sent && received_replies >= sent_requests)
+        {
+            scenario_complete = true;
+            break;
+        }
+
+        std::this_thread::sleep_for(50ms);
+    }
+
+    const std::string logout = controller.buildLogout("Demo complete");
+    (void)connection.sendAll(logout);
+    connection.close();
+
+    return (handshake_complete && scenario_complete) ? 0 : 1;
+}
+
+int runExchangeServer(const int port, const std::string &begin_string, const int runtime_seconds)
+{
+    fix::SocketConnection listener;
+    if(!listener.listenOn(port, 32))
+    {
+        std::cerr << "Unable to listen on port " << port << '\n';
+        return 2;
+    }
+
+    const int flags = ::fcntl(listener.fd(), F_GETFL, 0);
+    if(flags >= 0)
+    {
+        (void)::fcntl(listener.fd(), F_SETFL, flags | O_NONBLOCK);
+    }
+
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
+
+    while(std::chrono::steady_clock::now() < deadline)
+    {
+        auto accepted = listener.acceptClient();
+        if(!accepted.has_value())
+        {
+            std::this_thread::sleep_for(50ms);
+            continue;
+        }
+
+        fix::Controller       controller("EXCHANGE", "CLIENT", fix::Controller::Role::kAcceptor, begin_string);
+        fix::SocketConnection connection = std::move(*accepted);
+        auto session_deadline            = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
+
+        while(std::chrono::steady_clock::now() < session_deadline)
+        {
+            char                                       buffer[2048];
+            const fix::SocketConnection::ReceiveResult received =
+             connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
+            if(received.bytes_read > 0)
+            {
+                const auto frames =
+                 controller.consume(std::string_view(buffer, static_cast<std::size_t>(received.bytes_read)));
+                for(const auto &frame: frames)
+                {
+                    const auto action = controller.onMessage(frame);
+                    std::cout << "[exchange] <- ";
+                    printSafeFix(frame);
+                    for(const auto &event: action.events)
+                    {
+                        std::cout << "[exchange] event: " << event << '\n';
+                    }
+                    for(const auto &out: action.outbound_messages)
+                    {
+                        std::cout << "[exchange] -> ";
+                        printSafeFix(out);
+                        if(!connection.sendAll(out))
+                        {
+                            listener.close();
+                            return 4;
+                        }
+                    }
+                }
+            }
+            else if(received.bytes_read == 0)
+            {
+                break;
+            }
+            else if(received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK)
+            {
+                std::cerr << "recv failed: " << fix::SocketConnection::errorText(received.error_number) << '\n';
+                break;
+            }
+
+            if(controller.state() == fix::Controller::SessionState::kTerminated)
+            {
+                break;
+            }
+
+            std::this_thread::sleep_for(50ms);
+        }
+
+        const std::string logout = controller.buildLogout("Demo complete");
+        (void)connection.sendAll(logout);
+        connection.close();
+    }
+
+    listener.close();
+    return 0;
 }
 
 void printSafeFix(const std::string &message)
 {
     std::string pretty = message;
-    for(char &ch : pretty)
+    for(char &ch: pretty)
     {
         if(ch == 0x01)
         {
@@ -168,133 +424,75 @@ void printSafeFix(const std::string &message)
 
 int main()
 {
-    const std::string role = envOrDefault("FIX_ROLE", "acceptor");
-    const std::string host = envOrDefault("FIX_HOST", "fix-acceptor");
-    const int port = envOrDefaultInt("FIX_PORT", 5001);
-    const std::string scenario = envOrDefault("FIX_SCENARIO", "handshake");
-
-    const bool initiator = (role == "initiator");
-
-    fix::Controller controller(initiator ? "INITIATOR" : "ACCEPTOR",
-                               initiator ? "ACCEPTOR" : "INITIATOR",
-                               initiator ? fix::Controller::Role::kInitiator : fix::Controller::Role::kAcceptor);
-
-    int fd = -1;
-    if(initiator)
+    std::string role = envOrDefault("FIX_ROLE", "exchange");
+    if(role == "initiator")
     {
-        for(int attempt = 0; attempt < 30 && fd < 0; ++attempt)
-        {
-            fd = connectSocket(host, port);
-            if(fd < 0)
-            {
-                std::this_thread::sleep_for(1s);
-            }
-        }
-        if(fd < 0)
-        {
-            std::cerr << "Unable to connect to " << host << ':' << port << '\n';
-            return 2;
-        }
-        const std::string logon = controller.buildLogon(false);
-        std::cout << "[initiator] -> ";
-        printSafeFix(logon);
-        if(!sendAll(fd, logon))
-        {
-            return 3;
-        }
+        role = "client";
     }
-    else
+    else if(role == "acceptor")
     {
-        const int listener = listenSocket(port);
-        if(listener < 0)
-        {
-            std::cerr << "Unable to listen on port " << port << '\n';
-            return 2;
-        }
-        fd = ::accept(listener, nullptr, nullptr);
-        ::close(listener);
-        if(fd < 0)
-        {
-            std::cerr << "Accept failed: " << std::strerror(errno) << '\n';
-            return 2;
-        }
+        role = "exchange";
+    }
+    if(role != "client" && role != "exchange")
+    {
+        std::cerr << "Unsupported FIX_ROLE '" << role << "'. Use client or exchange.\n";
+        return 5;
     }
 
-    bool handshake_complete = false;
-    bool scenario_sent = false;
-    auto deadline = std::chrono::steady_clock::now() + 12s;
+    const std::string host                  = envOrDefault("FIX_HOST", "fix-exchange-1");
+    const int         port                  = envOrDefaultInt("FIX_PORT", 5001);
+    const std::string begin_string          = envOrDefault("FIX_BEGIN_STRING", "FIX.4.4");
+    const std::string hosts_csv             = envOrDefault("FIX_HOSTS", host);
+    const std::string ports_csv             = envOrDefault("FIX_PORTS", std::to_string(port));
+    const std::string scenario              = envOrDefault("FIX_SCENARIO", "handshake");
+    const int         conversation_messages = std::max(0, envOrDefaultInt("FIX_CONVERSATION_MESSAGES", 100));
+    const int         perf_payload_size     = std::max(32, envOrDefaultInt("FIX_PERF_PAYLOAD_SIZE", 512));
+    const int         runtime_seconds       = std::max(1, envOrDefaultInt("FIX_RUNTIME_SECONDS", 30));
 
-    while(std::chrono::steady_clock::now() < deadline)
+    if(role == "exchange")
     {
-        char buffer[2048];
-        const auto n = ::recv(fd, buffer, sizeof(buffer), MSG_DONTWAIT);
-        if(n > 0)
+        return runExchangeServer(port, begin_string, runtime_seconds);
+    }
+
+    const std::vector<std::string> hosts = splitCsv(hosts_csv);
+    std::vector<int>               ports = splitCsvInts(ports_csv);
+    if(hosts.empty())
+    {
+        std::cerr << "No valid hosts configured in FIX_HOSTS.\n";
+        return 5;
+    }
+    if(ports.empty())
+    {
+        ports.push_back(port);
+    }
+    if(ports.size() == 1 && hosts.size() > 1)
+    {
+        ports.resize(hosts.size(), ports.front());
+    }
+    if(ports.size() != hosts.size())
+    {
+        std::cerr << "FIX_HOSTS and FIX_PORTS must have matching counts, or FIX_PORTS must be a single value.\n";
+        return 5;
+    }
+
+    int final_rc = 0;
+    for(std::size_t i = 0; i < hosts.size(); ++i)
+    {
+        std::cout << "[client] session " << (i + 1) << '/' << hosts.size() << " -> " << hosts[i] << ':' << ports[i]
+                  << '\n';
+        const int rc = runSingleSession(role,
+                                        hosts[i],
+                                        ports[i],
+                                        begin_string,
+                                        scenario,
+                                        conversation_messages,
+                                        perf_payload_size,
+                                        runtime_seconds);
+        if(rc != 0)
         {
-            const auto frames = controller.consume(std::string_view(buffer, static_cast<std::size_t>(n)));
-            for(const auto &frame : frames)
-            {
-                const auto action = controller.onMessage(frame);
-                std::cout << '[' << role << "] <- ";
-                printSafeFix(frame);
-                for(const auto &event : action.events)
-                {
-                    std::cout << '[' << role << "] event: " << event << '\n';
-                }
-                for(const auto &out : action.outbound_messages)
-                {
-                    std::cout << '[' << role << "] -> ";
-                    printSafeFix(out);
-                    if(!sendAll(fd, out))
-                    {
-                        ::close(fd);
-                        return 4;
-                    }
-                }
-            }
-        }
-        else if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
-        {
-            std::cerr << "recv failed: " << std::strerror(errno) << '\n';
+            final_rc = rc;
             break;
         }
-
-        if(controller.state() == fix::Controller::SessionState::kEstablished)
-        {
-            handshake_complete = true;
-            if(initiator && !scenario_sent)
-            {
-                if(scenario == "out_of_sync")
-                {
-                    controller.skipOutboundSequence(4);
-                    const std::string out_of_sync_heartbeat = controller.buildHeartbeat();
-                    std::cout << "[initiator] -> ";
-                    printSafeFix(out_of_sync_heartbeat);
-                    if(!sendAll(fd, out_of_sync_heartbeat))
-                    {
-                        ::close(fd);
-                        return 4;
-                    }
-                }
-                else if(scenario == "garbled")
-                {
-                    const std::string garbled = "8=FIX.4.4|9=10|35=0|34=2|10=000|";
-                    std::cout << "[initiator] -> " << "garbled_frame\n";
-                    if(!sendAll(fd, garbled))
-                    {
-                        ::close(fd);
-                        return 4;
-                    }
-                }
-                scenario_sent = true;
-            }
-        }
-
-        std::this_thread::sleep_for(50ms);
     }
-
-    const std::string logout = controller.buildLogout("Demo complete");
-    (void)sendAll(fd, logout);
-    ::close(fd);
-
-    return handshake_complete ? 0 : 1;
+    return final_rc;
 }

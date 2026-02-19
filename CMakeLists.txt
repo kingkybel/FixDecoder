@@ -73,26 +73,26 @@ option(FIXDECODER_FETCH_GOOGLETEST "Fetch GoogleTest with CMake" ON)
 
 include(FetchContent)
 
-if(FIXDECODER_FETCH_TINYXML2)
+if (FIXDECODER_FETCH_TINYXML2)
     FetchContent_Declare(
             tinyxml2
             URL https://github.com/leethomason/tinyxml2/archive/9.0.0.tar.gz
     )
     FetchContent_MakeAvailable(tinyxml2)
-else()
+else ()
     find_package(tinyxml2 REQUIRED)
-endif()
+endif ()
 
-if(FIXDECODER_FETCH_GOOGLETEST)
+if (FIXDECODER_FETCH_GOOGLETEST)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(
             googletest
             URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
     )
     FetchContent_MakeAvailable(googletest)
-else()
+else ()
     find_package(GTest REQUIRED)
-endif()
+endif ()
 
 include_directories(
         BEFORE SYSTEM ${CMAKE_SOURCE_DIR}/include

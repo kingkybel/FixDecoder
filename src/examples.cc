@@ -27,12 +27,11 @@
 #include "fix_msgtype_key.h"
 
 #include <FIX42_decoder_map.h>
-#include <generator_map.h>
-#include <msg_generated_object.h>
-
 #include <cstdint>
+#include <generator_map.h>
 #include <iostream>
 #include <memory>
+#include <msg_generated_object.h>
 #include <string>
 #include <string_view>
 
@@ -47,7 +46,7 @@ struct NewOrderSingle final : util::MsgGeneratedObjectIfc
 
 std::string findFieldValue(const fix::DecodedMessage &decoded, std::uint32_t tag)
 {
-    for(const auto &field : decoded.fields)
+    for(const auto &field: decoded.fields)
     {
         if(field.tag == tag)
         {
@@ -63,7 +62,7 @@ void printDecodedMessage(const fix::DecodedMessage &decoded)
     std::cout << "MsgType: " << decoded.msg_type << "\n";
     std::cout << "Fields:\n";
 
-    for(const auto &field : decoded.fields)
+    for(const auto &field: decoded.fields)
     {
         std::cout << "  " << field.tag;
         if(!field.name.empty())
@@ -109,9 +108,9 @@ void runDecodeObjectExample(const fix::Decoder &decoder, const std::string &mess
     std::cout << "\n=== Example 2: decodeObject() enum-based access ===\n";
     const fix::DecodedObject decoded = decoder.decodeObject(message);
 
-    const auto symbol = decoded[fix::generated::fix42::FieldTag::kSymbol].as<std::string_view>();
+    const auto symbol   = decoded[fix::generated::fix42::FieldTag::kSymbol].as<std::string_view>();
     const auto quantity = decoded[fix::generated::fix42::FieldTag::kOrderQty].as<double>();
-    const auto price = decoded[fix::generated::fix42::FieldTag::kPrice].as<double>();
+    const auto price    = decoded[fix::generated::fix42::FieldTag::kPrice].as<double>();
 
     if(symbol && quantity && price)
     {
@@ -122,9 +121,9 @@ void runDecodeObjectExample(const fix::Decoder &decoder, const std::string &mess
         std::cout << "Expected FIX.4.2 symbol/qty/price fields are missing.\n";
     }
 
-    const auto fallback_symbol = decoded[fix::generated::fix42::FieldTag::kMsgType]
-                                      [fix::generated::fix42::FieldTag::kSymbol]
-                                          .as<std::string_view>();
+    const auto fallback_symbol =
+     decoded[fix::generated::fix42::FieldTag::kMsgType][fix::generated::fix42::FieldTag::kSymbol]
+      .as<std::string_view>();
     if(fallback_symbol)
     {
         std::cout << "Chained lookup fallback symbol=" << *fallback_symbol << "\n";
@@ -138,7 +137,7 @@ void runApplVerIdSelectionExample(const fix::Decoder &decoder, const std::string
 
     std::cout << "BeginString: " << decoded.begin_string << " MsgType: " << decoded.msg_type << "\n";
 
-    for(const auto &field : decoded.fields)
+    for(const auto &field: decoded.fields)
     {
         if(field.tag == 44)
         {
@@ -173,13 +172,15 @@ void runGeneratedObjectExample(fix::Decoder &decoder, const std::string &message
 
     using Map = util::generator_map<8, fix::fix_msg_key>;
 
-    Map::registerGenerator("35=D|", [&](const std::string &raw) {
-        const fix::DecodedMessage decoded = decoder.decode(raw);
-        auto obj = std::make_shared<NewOrderSingle>();
-        obj->cl_ord_id = findFieldValue(decoded, 11);
-        obj->symbol = findFieldValue(decoded, 55);
-        return obj;
-    });
+    Map::registerGenerator("35=D|",
+                           [&](const std::string &raw)
+                           {
+                               const fix::DecodedMessage decoded = decoder.decode(raw);
+                               auto                      obj     = std::make_shared<NewOrderSingle>();
+                               obj->cl_ord_id                    = findFieldValue(decoded, 11);
+                               obj->symbol                       = findFieldValue(decoded, 55);
+                               return obj;
+                           });
 
     auto generated = Map::get(message);
     if(!generated)
@@ -189,8 +190,7 @@ void runGeneratedObjectExample(fix::Decoder &decoder, const std::string &message
     }
 
     auto order = std::static_pointer_cast<NewOrderSingle>(generated);
-    std::cout << "Generated NewOrderSingle: ClOrdID=" << order->cl_ord_id
-              << " Symbol=" << order->symbol << "\n";
+    std::cout << "Generated NewOrderSingle: ClOrdID=" << order->cl_ord_id << " Symbol=" << order->symbol << "\n";
 }
 
 }  // namespace
@@ -199,23 +199,21 @@ int main(int argc, char **argv)
 {
     const std::string dictionary_directory = (argc > 1) ? argv[1] : "data/quickfix";
 
-    const std::string basic_decode_message =
-        (argc > 2)
-            ? argv[2]
-            : "8=FIX.4.2|9=65|35=D|49=BUY|56=SELL|34=2|52=20100225-19:41:57.316|11=ABC|21=1|55=IBM|54=1|60=20100225-19:41:57.316|38=100|40=1|10=062|";
+    const std::string basic_decode_message = (argc > 2) ?
+                                              argv[2] :
+                                              "8=FIX.4.2|9=65|35=D|49=BUY|56=SELL|34=2|52=20100225-19:41:57.316|11=ABC|"
+                                              "21=1|55=IBM|54=1|60=20100225-19:41:57.316|38=100|40=1|10=062|";
 
     const std::string object_decode_message =
-        (argc > 3)
-            ? argv[3]
-            : "8=FIX.4.2|9=61|35=T|55=IBM|38=100|44=123.45|10=000|";
+     (argc > 3) ? argv[3] : "8=FIX.4.2|9=61|35=T|55=IBM|38=100|44=123.45|10=000|";
 
     const std::string appl_ver_id_message =
-        (argc > 4)
-            ? argv[4]
-            : "8=FIXT.1.1|9=108|35=D|1128=9|49=BUY|56=SELL|34=2|52=20260211-12:00:00.000|11=DEF|55=MSFT|54=1|60=20260211-12:00:00.000|38=250|40=2|44=420.50|10=000|";
+     (argc > 4) ? argv[4] :
+                  "8=FIXT.1.1|9=108|35=D|1128=9|49=BUY|56=SELL|34=2|52=20260211-12:00:00.000|11=DEF|55=MSFT|54=1|60="
+                  "20260211-12:00:00.000|38=250|40=2|44=420.50|10=000|";
 
     fix::Decoder decoder;
-    std::string error;
+    std::string  error;
 
     if(!decoder.loadDictionariesFromDirectory(dictionary_directory, &error))
     {

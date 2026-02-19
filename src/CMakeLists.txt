@@ -29,6 +29,7 @@ add_library(fixdecoder
         fix_dictionary.cc
         fix_decoder.cc
         fix_controller.cc
+        fix_socket_connection.cc
 )
 
 target_include_directories(fixdecoder

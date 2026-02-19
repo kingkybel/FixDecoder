@@ -27,7 +27,6 @@
 
 #include <filesystem>
 #include <sstream>
-
 #include <tinyxml2.h>
 
 namespace fix
@@ -36,50 +35,50 @@ namespace fix
 namespace
 {
 
-MemberKind memberKindFromName(const char *name)
-{
-    if(!name)
+    MemberKind memberKindFromName(const char *name)
     {
+        if(!name)
+        {
+            return MemberKind::Field;
+        }
+        if(std::string{name} == "component")
+        {
+            return MemberKind::Component;
+        }
+        if(std::string{name} == "group")
+        {
+            return MemberKind::Group;
+        }
         return MemberKind::Field;
     }
-    if(std::string{name} == "component")
+
+    void parseMembers(const tinyxml2::XMLElement *parent, std::vector<Member> &out)
     {
-        return MemberKind::Component;
-    }
-    if(std::string{name} == "group")
-    {
-        return MemberKind::Group;
-    }
-    return MemberKind::Field;
-}
-
-void parseMembers(const tinyxml2::XMLElement *parent, std::vector<Member> &out)
-{
-    for(const tinyxml2::XMLElement *child = parent->FirstChildElement(); child; child = child->NextSiblingElement())
-    {
-        const std::string element_name = child->Name() ? child->Name() : "";
-        if(element_name != "field" && element_name != "component" && element_name != "group")
+        for(const tinyxml2::XMLElement *child = parent->FirstChildElement(); child; child = child->NextSiblingElement())
         {
-            continue;
+            const std::string element_name = child->Name() ? child->Name() : "";
+            if(element_name != "field" && element_name != "component" && element_name != "group")
+            {
+                continue;
+            }
+
+            Member member;
+            member.kind = memberKindFromName(child->Name());
+
+            if(const char *name_attr = child->Attribute("name"))
+            {
+                member.name = name_attr;
+            }
+            member.required = Dictionary::isRequiredAttr(child->Attribute("required"));
+
+            if(member.kind == MemberKind::Group)
+            {
+                parseMembers(child, member.children);
+            }
+
+            out.emplace_back(std::move(member));
         }
-
-        Member member;
-        member.kind = memberKindFromName(child->Name());
-
-        if(const char *name_attr = child->Attribute("name"))
-        {
-            member.name = name_attr;
-        }
-        member.required = Dictionary::isRequiredAttr(child->Attribute("required"));
-
-        if(member.kind == MemberKind::Group)
-        {
-            parseMembers(child, member.children);
-        }
-
-        out.emplace_back(std::move(member));
     }
-}
 
 }  // namespace
 
@@ -133,19 +132,19 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
     if(fields)
     {
         for(const tinyxml2::XMLElement *field = fields->FirstChildElement("field"); field;
-            field = field->NextSiblingElement("field"))
+            field                             = field->NextSiblingElement("field"))
         {
             FieldDef def;
-            int number = 0;
+            int      number = 0;
             field->QueryIntAttribute("number", &number);
             def.name = field->Attribute("name") ? field->Attribute("name") : "";
             def.type = field->Attribute("type") ? field->Attribute("type") : "";
 
             for(const tinyxml2::XMLElement *val = field->FirstChildElement("value"); val;
-                val = val->NextSiblingElement("value"))
+                val                             = val->NextSiblingElement("value"))
             {
                 FieldEnum e;
-                e.value = val->Attribute("enum") ? val->Attribute("enum") : "";
+                e.value       = val->Attribute("enum") ? val->Attribute("enum") : "";
                 e.description = val->Attribute("description") ? val->Attribute("description") : "";
                 def.enums.emplace_back(std::move(e));
             }
@@ -162,12 +161,12 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
     if(messages)
     {
         for(const tinyxml2::XMLElement *msg = messages->FirstChildElement("message"); msg;
-            msg = msg->NextSiblingElement("message"))
+            msg                             = msg->NextSiblingElement("message"))
         {
             MessageDef def;
-            def.name = msg->Attribute("name") ? msg->Attribute("name") : "";
+            def.name     = msg->Attribute("name") ? msg->Attribute("name") : "";
             def.msg_type = msg->Attribute("msgtype") ? msg->Attribute("msgtype") : "";
-            def.msg_cat = msg->Attribute("msgcat") ? msg->Attribute("msgcat") : "";
+            def.msg_cat  = msg->Attribute("msgcat") ? msg->Attribute("msgcat") : "";
 
             parseMembers(msg, def.members);
 
@@ -183,7 +182,7 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
     if(components)
     {
         for(const tinyxml2::XMLElement *component = components->FirstChildElement("component"); component;
-            component = component->NextSiblingElement("component"))
+            component                             = component->NextSiblingElement("component"))
         {
             std::string name = component->Attribute("name") ? component->Attribute("name") : "";
             if(name.empty())
@@ -235,7 +234,7 @@ bool DictionarySet::loadFromDirectory(const std::string &path, std::string *erro
 
     std::vector<std::string> failures;
 
-    for(const auto &entry : std::filesystem::directory_iterator(path))
+    for(const auto &entry: std::filesystem::directory_iterator(path))
     {
         if(!entry.is_regular_file())
         {
@@ -246,7 +245,7 @@ bool DictionarySet::loadFromDirectory(const std::string &path, std::string *erro
             continue;
         }
 
-        Dictionary dict;
+        Dictionary  dict;
         std::string local_error;
         if(!dict.loadFromFile(entry.path().string(), &local_error))
         {
@@ -254,7 +253,7 @@ bool DictionarySet::loadFromDirectory(const std::string &path, std::string *erro
             continue;
         }
 
-        const std::size_t idx = dictionaries_.size();
+        const std::size_t idx            = dictionaries_.size();
         begin_index_[dict.beginString()] = idx;
         dictionaries_.push_back(std::move(dict));
     }

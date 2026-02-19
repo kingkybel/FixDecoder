@@ -52,11 +52,11 @@ struct FieldEnum
 struct FieldDef
 {
     /** Numeric field tag. */
-    std::uint32_t          number = 0;
+    std::uint32_t number = 0;
     /** Field name (for example `MsgType`). */
-    std::string            name;
+    std::string name;
     /** Field type string from dictionary (for example `STRING`, `INT`). */
-    std::string            type;
+    std::string type;
     /** Optional enum values defined for the field. */
     std::vector<FieldEnum> enums;
 };
@@ -80,13 +80,13 @@ enum class MemberKind
 struct Member
 {
     /** Member kind (field, component, or group). */
-    MemberKind           kind = MemberKind::Field;
+    MemberKind kind = MemberKind::Field;
     /** Member name as defined in dictionary XML. */
-    std::string          name;
+    std::string name;
     /** Indicates whether the member is required (`Y`). */
-    bool                 required = false;
+    bool required = false;
     /** Nested group members (used when kind is `Group`). */
-    std::vector<Member>  children;
+    std::vector<Member> children;
 };
 
 /**
@@ -95,11 +95,11 @@ struct Member
 struct MessageDef
 {
     /** Human-readable message name. */
-    std::string         name;
+    std::string name;
     /** Message type code (tag 35 value). */
-    std::string         msg_type;
+    std::string msg_type;
     /** Message category (`admin` or `app`). */
-    std::string         msg_cat;
+    std::string msg_cat;
     /** Ordered members defined for this message. */
     std::vector<Member> members;
 };
@@ -109,7 +109,7 @@ struct MessageDef
  */
 class Dictionary
 {
-public:
+    public:
     /**
      * @brief Loads one QuickFIX-compatible XML dictionary file.
      * @param path Path to dictionary XML file.
@@ -123,7 +123,7 @@ public:
      * @param number FIX tag number.
      * @return Pointer to field definition, or `nullptr` if not found.
      */
-    const FieldDef   *fieldByNumber(std::uint32_t number) const;
+    const FieldDef *fieldByNumber(std::uint32_t number) const;
     /**
      * @brief Finds a message definition by message type code.
      * @param msg_type FIX MsgType value (tag 35).
@@ -135,12 +135,18 @@ public:
      * @brief Returns the dictionary begin string (for example `FIX.4.4`).
      * @return Dictionary begin string.
      */
-    const std::string &beginString() const { return begin_string_; }
+    const std::string &beginString() const
+    {
+        return begin_string_;
+    }
     /**
      * @brief Returns the dictionary transport type (for example `FIX` or `FIXT`).
      * @return Dictionary type string.
      */
-    const std::string &type() const { return fix_type_; }
+    const std::string &type() const
+    {
+        return fix_type_;
+    }
 
     /**
      * @brief Converts a QuickFIX `required` attribute value to boolean.
@@ -149,16 +155,16 @@ public:
      */
     static bool isRequiredAttr(const char *value);
 
-private:
+    private:
     std::string begin_string_;
     std::string fix_type_;
-    int         major_ = 0;
-    int         minor_ = 0;
+    int         major_       = 0;
+    int         minor_       = 0;
     int         servicepack_ = 0;
 
-    std::unordered_map<std::uint32_t, FieldDef>           fields_;
-    std::unordered_map<std::string, MessageDef>           messages_;
-    std::unordered_map<std::string, std::vector<Member>>  components_;
+    std::unordered_map<std::uint32_t, FieldDef>          fields_;
+    std::unordered_map<std::string, MessageDef>          messages_;
+    std::unordered_map<std::string, std::vector<Member>> components_;
 
     static std::string buildBeginString(const std::string &type, int major, int minor);
 };
@@ -168,7 +174,7 @@ private:
  */
 class DictionarySet
 {
-public:
+    public:
     /**
      * @brief Loads all dictionary XML files from a directory.
      * @param path Directory containing dictionary files.
@@ -184,9 +190,9 @@ public:
      */
     const Dictionary *findByBeginString(const std::string &begin_string) const;
 
-private:
-    std::vector<Dictionary>                       dictionaries_;
-    std::unordered_map<std::string, std::size_t>  begin_index_;
+    private:
+    std::vector<Dictionary>                      dictionaries_;
+    std::unordered_map<std::string, std::size_t> begin_index_;
 };
 
 }  // namespace fix

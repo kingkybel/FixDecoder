@@ -18,8 +18,14 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=build /workspace/build/Release/bin/fix_controller_demo /usr/local/bin/fix_controller_demo
 
-ENV FIX_ROLE=acceptor
+ENV FIX_ROLE=exchange
+ENV FIX_HOST=fix-exchange-1
+ENV FIX_HOSTS=fix-exchange-1
 ENV FIX_PORT=5001
+ENV FIX_PORTS=5001
 ENV FIX_SCENARIO=handshake
+ENV FIX_CONVERSATION_MESSAGES=100
+ENV FIX_PERF_PAYLOAD_SIZE=512
+ENV FIX_RUNTIME_SECONDS=30
 
 ENTRYPOINT ["/usr/local/bin/fix_controller_demo"]
