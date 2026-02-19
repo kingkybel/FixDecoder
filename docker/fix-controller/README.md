@@ -2,6 +2,8 @@
 
 This directory contains Docker-based integration tests for the session-level FIX controller.
 
+Supported base-image families for builder/runtime are Ubuntu/Debian, Fedora, and Alpine.
+
 ## Files
 
 - `compose.yml`: starts two `exchange` containers and one `client` container on one bridge network.
@@ -22,6 +24,15 @@ One-time build:
 docker compose -f docker/fix-controller/compose.yml --profile build-bin up --build --exit-code-from fix-builder fix-builder
 ```
 
+Build for a specific OS/compiler tuple (image names include tuple):
+
+```bash
+FIX_BASE_IMAGE=ubuntu:24.04 FIX_COMPILER_FAMILY=g++ FIX_COMPILER_VERSION= \
+FIX_BUILDER_IMAGE=fix-controller-builder:ubuntu-24.04-gxx-latest \
+FIX_RUNTIME_IMAGE=fix-controller-runtime:ubuntu-24.04-gxx-latest \
+docker compose -f docker/fix-controller/compose.yml --profile build-bin up --build --exit-code-from fix-builder fix-builder
+```
+
 Run scenarios after that without rebuilding:
 
 ```bash
@@ -34,6 +45,12 @@ From repository root:
 
 ```bash
 ./docker/fix-controller/run_all_scenarios.sh
+```
+
+Only build container images + binary artifact (no scenario execution):
+
+```bash
+./docker/fix-controller/run_all_scenarios.sh --build-only
 ```
 
 Logging:
@@ -58,6 +75,40 @@ Filter versions with `--fix-versions` / `-f` (case-insensitive, supports shortha
 ./docker/fix-controller/run_all_scenarios.sh -f 11 Fix-40
 ./docker/fix-controller/run_all_scenarios.sh --fix-versions fixt11 4.4
 ```
+
+Select distro/compiler for the full scenario run:
+
+```bash
+./docker/fix-controller/run_all_scenarios.sh -o ubuntu:24.04 -c g++
+./docker/fix-controller/run_all_scenarios.sh -o ubuntu:24.04 -c gcc -v 14
+./docker/fix-controller/run_all_scenarios.sh -o fedora:41 -c clang -v 18
+./docker/fix-controller/run_all_scenarios.sh -o alpine:latest -c g++
+```
+
+
+The script maps this tuple to image names:
+
+- `fix-controller-builder:<os>-<tag>-<compiler>-<version>`
+- `fix-controller-runtime:<os>-<tag>-<compiler>-<version>`
+- Docker tags cannot contain `+`, so `g++` is encoded as `gxx` in image tags.
+- When `--compiler-version` is omitted, the tag uses `latest` and the build uses the newest available compiler package in the selected base image.
+
+### Size comparison
+
+| IMAGE                                      | ID           | DISK USAGE | CONTENT SIZE | EXTRA | SMALLEST | BIGGEST |
+| ------------------------------------------ | ------------ | ---------- | ------------ | ----- | -------- | ------- |
+| fix-controller-builder:alpine-clang-latest | 889600d53af3 |      925MB |        244MB |       |          |         |
+| fix-controller-builder:alpine-gxx-latest   | e4a18cb4aca0 |      517MB |        134MB |       |    X     |         |
+| fix-controller-builder:fedora-clang-latest | f9d27a89fe8d |     1.47GB |        361MB |       |          |    X    |
+| fix-controller-builder:fedora-gxx-latest   | 94c6738dcd48 |      881MB |        220MB |  U    |          |         |
+| fix-controller-builder:ubuntu-clang-latest | c7e3e30ed827 |      839MB |        200MB |       |          |         |
+| fix-controller-builder:ubuntu-gxx-latest   | 81158ad2bd5b |      702MB |        180MB |       |          |         |
+| fix-controller-runtime:alpine-clang-latest | 9ec594e2daad |     14.8MB |       4.16MB |       |    X     |         |
+| fix-controller-runtime:alpine-gxx-latest   | e11b41fbf8bb |     14.8MB |       4.16MB |       |    X     |         |
+| fix-controller-runtime:fedora-clang-latest | eccbed97e73a |      269MB |       67.5MB |       |          |    X    |
+| fix-controller-runtime:fedora-gxx-latest   | c6b1caa8c9a2 |      269MB |       67.5MB |       |          |    X    |
+| fix-controller-runtime:ubuntu-clang-latest | bd5c1bd2333b |      122MB |       30.8MB |       |          |         |
+| fix-controller-runtime:ubuntu-gxx-latest   | 06908dbd621c |      122MB |       30.8MB |       |          |         |
 
 Version coverage in `run_all_scenarios.sh`:
 

@@ -6,11 +6,26 @@ services:
     build:
       context: ../..
       dockerfile: docker/fix-controller/Dockerfile.builder
-    image: fix-controller-builder:latest
+      args:
+        BASE_IMAGE: ${FIX_BASE_IMAGE:-ubuntu:24.04}
+        COMPILER_FAMILY: ${FIX_COMPILER_FAMILY:-g++}
+        COMPILER_VERSION: ${FIX_COMPILER_VERSION:-}
+    image: ${FIX_BUILDER_IMAGE:-fix-controller-builder:ubuntu-24.04-gxx-latest}
     working_dir: /workspace
+    environment:
+      FIX_COMPILER_FAMILY: ${FIX_COMPILER_FAMILY:-g++}
+      FIX_COMPILER_VERSION: ${FIX_COMPILER_VERSION:-}
     command: >
-      bash -lc "rm -rf /tmp/build &&
-      cmake -S /workspace -B /tmp/build -DCMAKE_BUILD_TYPE=Release &&
+      bash -lc "set -euo pipefail &&
+      cc_bin=gcc &&
+      cxx_bin=g++ &&
+      if [ \"$${FIX_COMPILER_FAMILY}\" = \"clang\" ]; then cc_bin=clang; cxx_bin=clang++; fi &&
+      if [ -n \"$${FIX_COMPILER_VERSION}\" ]; then
+        if command -v \"$${cc_bin}-$${FIX_COMPILER_VERSION}\" >/dev/null 2>&1; then cc_bin=\"$${cc_bin}-$${FIX_COMPILER_VERSION}\"; fi &&
+        if command -v \"$${cxx_bin}-$${FIX_COMPILER_VERSION}\" >/dev/null 2>&1; then cxx_bin=\"$${cxx_bin}-$${FIX_COMPILER_VERSION}\"; fi;
+      fi &&
+      rm -rf /tmp/build &&
+      cmake -S /workspace -B /tmp/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=\"$${cc_bin}\" -DCMAKE_CXX_COMPILER=\"$${cxx_bin}\" &&
       cmake --build /tmp/build --target fix_controller_demo --parallel 3 &&
       cp /tmp/build/Release/bin/fix_controller_demo /out/fix_controller_demo &&
       chmod +x /out/fix_controller_demo"
@@ -22,7 +37,9 @@ services:
     build:
       context: ../..
       dockerfile: docker/fix-controller/Dockerfile.runtime
-    image: fix-controller-runtime:latest
+      args:
+        BASE_IMAGE: ${FIX_BASE_IMAGE:-ubuntu:24.04}
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     environment:
       FIX_ROLE: exchange
       FIX_PORT: 5001
@@ -39,7 +56,7 @@ services:
       - fixnet
 
   fix-exchange-2:
-    image: fix-controller-runtime:latest
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     depends_on:
       - fix-exchange-1
     environment:
@@ -59,7 +76,7 @@ services:
 
   fix-client-1:
     profiles: [ "single-client" ]
-    image: fix-controller-runtime:latest
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     depends_on:
       - fix-exchange-1
       - fix-exchange-2
@@ -80,7 +97,7 @@ services:
 
   fix-client-multi:
     profiles: [ "multi-exchange" ]
-    image: fix-controller-runtime:latest
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     depends_on:
       - fix-exchange-1
       - fix-exchange-2
@@ -101,7 +118,7 @@ services:
 
   fix-client-2:
     profiles: [ "multi-client" ]
-    image: fix-controller-runtime:latest
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     depends_on:
       - fix-exchange-1
       - fix-exchange-2
@@ -122,7 +139,7 @@ services:
 
   fix-client-mesh-1:
     profiles: [ "multi-mesh" ]
-    image: fix-controller-runtime:latest
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     depends_on:
       - fix-exchange-1
       - fix-exchange-2
@@ -143,7 +160,7 @@ services:
 
   fix-client-mesh-2:
     profiles: [ "multi-mesh" ]
-    image: fix-controller-runtime:latest
+    image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
     depends_on:
       - fix-exchange-1
       - fix-exchange-2

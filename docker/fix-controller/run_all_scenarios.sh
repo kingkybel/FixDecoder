@@ -7,6 +7,13 @@ COMPOSE_FILE="${REPO_ROOT}/docker/fix-controller/compose.yml"
 LOG_DIR="${REPO_ROOT}/docker/fix-controller/logs"
 mkdir -p "${LOG_DIR}"
 LOG_FILE="${LOG_FILE:-${LOG_DIR}/run_all_scenarios_$(date +%Y%m%d_%H%M%S).log}"
+TARGET_BASE_IMAGE="${FIX_BASE_IMAGE:-ubuntu:24.04}"
+TARGET_COMPILER_FAMILY="${FIX_COMPILER_FAMILY:-g++}"
+TARGET_COMPILER_VERSION="${FIX_COMPILER_VERSION:-}"
+TARGET_IMAGE_SUFFIX=""
+TARGET_BUILDER_IMAGE=""
+TARGET_RUNTIME_IMAGE=""
+BUILD_ONLY=0
 
 ALL_FIX_VERSIONS=(
     "FIX.4.0"
@@ -54,8 +61,47 @@ Options:
                                        -f FIX.4.4
                                        -f 11 Fix-40
                                        --fix-versions fixt11 4.2
+  -o, --os <image>                  Base image for build/runtime containers.
+                                     Examples: ubuntu:24.04, fedora:41
+  -c, --compiler <name>             Compiler family: g++, gcc, or clang.
+  -v, --compiler-version <major>    Preferred compiler major version (for example 14 or 18).
+  -b, --build-only                  Build images + binary artifact, then exit.
   -h, --help                         Show this help.
+
+Defaults:
+  --os ubuntu:24.04
+  --compiler g++
+  --compiler-version (unset; uses latest available for selected compiler family)
 EOF
+}
+
+normalize_compiler_family() {
+    local raw="$1"
+    local lower
+    lower="$(printf '%s' "${raw}" | tr '[:upper:]' '[:lower:]')"
+    case "${lower}" in
+        gcc|g++)
+            echo "g++"
+            ;;
+        clang|llvm)
+            echo "clang"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+sanitize_for_tag() {
+    local raw="$1"
+    local lowered
+    lowered="$(printf '%s' "${raw}" | tr '[:upper:]' '[:lower:]')"
+    lowered="${lowered//g++/gxx}"
+    lowered="${lowered//clang++/clangxx}"
+    # Keep tag-safe chars and normalize separators.
+    lowered="$(printf '%s' "${lowered}" | tr '/:@ ' '-' | tr -cd 'a-z0-9_.-')"
+    lowered="$(printf '%s' "${lowered}" | sed -E 's/-+/-/g; s/^-+//; s/-+$//')"
+    echo "${lowered}"
 }
 
 contains_version() {
@@ -128,6 +174,52 @@ parse_args() {
                     shift
                 done
                 ;;
+            -o|--os|--base-image)
+                shift
+                if [[ $# -eq 0 || "$1" == -* ]]; then
+                    echo "Missing value after --os/--base-image/-o" >&2
+                    usage >&2
+                    exit 2
+                fi
+                TARGET_BASE_IMAGE="$1"
+                shift
+                ;;
+            -c|--compiler)
+                shift
+                if [[ $# -eq 0 || "$1" == -* ]]; then
+                    echo "Missing value after --compiler/-c" >&2
+                    usage >&2
+                    exit 2
+                fi
+                local fam
+                fam="$(normalize_compiler_family "$1")"
+                if [[ -z "${fam}" ]]; then
+                    echo "Unsupported compiler family: '$1' (use g++|gcc|clang)" >&2
+                    usage >&2
+                    exit 2
+                fi
+                TARGET_COMPILER_FAMILY="${fam}"
+                shift
+                ;;
+            -v|--compiler-version)
+                shift
+                if [[ $# -eq 0 || "$1" == -* ]]; then
+                    echo "Missing value after --compiler-version/-v" >&2
+                    usage >&2
+                    exit 2
+                fi
+                if [[ ! "$1" =~ ^[0-9]+$ ]]; then
+                    echo "Compiler version must be numeric major version, got '$1'" >&2
+                    usage >&2
+                    exit 2
+                fi
+                TARGET_COMPILER_VERSION="$1"
+                shift
+                ;;
+            -b|--build-only)
+                BUILD_ONLY=1
+                shift
+                ;;
             *)
                 echo "Unknown option: $1" >&2
                 usage >&2
@@ -139,6 +231,17 @@ parse_args() {
     if [[ ${#FIX_VERSIONS[@]} -eq 0 ]]; then
         FIX_VERSIONS=("${ALL_FIX_VERSIONS[@]}")
     fi
+
+    local compiler_tag
+    local compiler_ver_tag
+    compiler_tag="$(sanitize_for_tag "${TARGET_COMPILER_FAMILY}")"
+    compiler_ver_tag="$(sanitize_for_tag "${TARGET_COMPILER_VERSION}")"
+    if [[ -z "${compiler_ver_tag}" ]]; then
+        compiler_ver_tag="latest"
+    fi
+    TARGET_IMAGE_SUFFIX="$(sanitize_for_tag "${TARGET_BASE_IMAGE}")-${compiler_tag}-${compiler_ver_tag}"
+    TARGET_BUILDER_IMAGE="fix-controller-builder:${TARGET_IMAGE_SUFFIX}"
+    TARGET_RUNTIME_IMAGE="fix-controller-runtime:${TARGET_IMAGE_SUFFIX}"
 }
 
 run_case() {
@@ -156,7 +259,13 @@ run_case() {
     local case_start
     case_start="$(date +%s)"
     local rc=0
-    if ! env "$@" docker compose -f "${COMPOSE_FILE}" --profile "${profile}" up \
+    if ! env \
+        FIX_BASE_IMAGE="${TARGET_BASE_IMAGE}" \
+        FIX_COMPILER_FAMILY="${TARGET_COMPILER_FAMILY}" \
+        FIX_COMPILER_VERSION="${TARGET_COMPILER_VERSION}" \
+        FIX_BUILDER_IMAGE="${TARGET_BUILDER_IMAGE}" \
+        FIX_RUNTIME_IMAGE="${TARGET_RUNTIME_IMAGE}" \
+        "$@" docker compose -f "${COMPOSE_FILE}" --profile "${profile}" up \
         --abort-on-container-failure \
         --exit-code-from "${exit_service}"; then
         rc=$?
@@ -181,8 +290,20 @@ run_case() {
 prepare_runtime() {
     log_line "Preparing runtime image and binary artifact (build once)"
     docker compose -f "${COMPOSE_FILE}" down --remove-orphans >/dev/null 2>&1 || true
-    docker compose -f "${COMPOSE_FILE}" build fix-exchange-1
-    docker compose -f "${COMPOSE_FILE}" --profile build-bin up \
+    env \
+        FIX_BASE_IMAGE="${TARGET_BASE_IMAGE}" \
+        FIX_COMPILER_FAMILY="${TARGET_COMPILER_FAMILY}" \
+        FIX_COMPILER_VERSION="${TARGET_COMPILER_VERSION}" \
+        FIX_BUILDER_IMAGE="${TARGET_BUILDER_IMAGE}" \
+        FIX_RUNTIME_IMAGE="${TARGET_RUNTIME_IMAGE}" \
+        docker compose -f "${COMPOSE_FILE}" build fix-exchange-1
+    env \
+        FIX_BASE_IMAGE="${TARGET_BASE_IMAGE}" \
+        FIX_COMPILER_FAMILY="${TARGET_COMPILER_FAMILY}" \
+        FIX_COMPILER_VERSION="${TARGET_COMPILER_VERSION}" \
+        FIX_BUILDER_IMAGE="${TARGET_BUILDER_IMAGE}" \
+        FIX_RUNTIME_IMAGE="${TARGET_RUNTIME_IMAGE}" \
+        docker compose -f "${COMPOSE_FILE}" --profile build-bin up \
         --build \
         --abort-on-container-failure \
         --exit-code-from fix-builder \
@@ -195,8 +316,18 @@ parse_args "$@"
 
 log_line "Starting full docker FIX scenario suite"
 log_line "FIX versions under test: ${FIX_VERSIONS[*]}"
+log_line "Base image: ${TARGET_BASE_IMAGE}"
+log_line "Compiler: ${TARGET_COMPILER_FAMILY} ${TARGET_COMPILER_VERSION:-latest}"
+log_line "Builder image tag: ${TARGET_BUILDER_IMAGE}"
+log_line "Runtime image tag: ${TARGET_RUNTIME_IMAGE}"
 log_line "Compose file: ${COMPOSE_FILE}"
 prepare_runtime
+
+if [[ ${BUILD_ONLY} -eq 1 ]]; then
+    log_line "Build-only mode enabled; skipping scenario execution."
+    print_summary
+    exit 0
+fi
 
 echo "Running single-client scenarios across FIX versions: ${FIX_VERSIONS[*]}"
 for version in "${FIX_VERSIONS[@]}"; do

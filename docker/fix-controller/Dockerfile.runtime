@@ -1,6 +1,26 @@
-FROM ubuntu:24.04
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    . /etc/os-release; \
+    case "${ID}" in \
+        ubuntu|debian) \
+            apt-get update; \
+            apt-get install -y --no-install-recommends ca-certificates; \
+            rm -rf /var/lib/apt/lists/*; \
+            ;; \
+        fedora) \
+            dnf -y install ca-certificates; \
+            dnf clean all; \
+            ;; \
+        alpine) \
+            apk add --no-cache ca-certificates; \
+            ;; \
+        *) \
+            echo "Unsupported distro ID: ${ID}" >&2; \
+            exit 2; \
+            ;; \
+    esac
 
 WORKDIR /app
 ENTRYPOINT ["/app/fix_controller_demo"]
