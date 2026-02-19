@@ -36,7 +36,7 @@ The decoder follows four steps:
 3. FIX version-first decoder selection
     - The decoder reads tag `8` (`BeginString`) first.
     - If tag `1128` (`ApplVerID`) is present, it maps that application version and uses it for decode-map selection.
-    - It then selects the generated per-version decoder map in `data/generated/*_decoder_map.h`.
+    - It then selects the generated per-version decoder map in `data/generated_src/*_decoder_map.h`.
 4. Typed decode and object materialization
     - Each tag is resolved through generated `decoderTagFor(tag)` and decoded to a typed C++ value (`bool`,
       `std::int64_t`,
@@ -121,6 +121,17 @@ Fetch per-version valid sample messages used by tests:
 ```bash
 ./scripts/fetch_sample_fix_messages.sh
 ```
+
+Fetch reference symbols/participants and generate realistic grouped FIX samples:
+
+```bash
+./scripts/generate_realistic_fix_samples.py
+```
+
+This writes:
+
+- `data/samples/reference/realistic_reference_data.json`
+- `data/samples/realistic/FIX44_realistic_variety.messages`
 
 ## Usage
 

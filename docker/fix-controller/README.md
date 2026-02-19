@@ -69,6 +69,12 @@ Optional overrides for the performance step:
 FIX_CONVERSATION_MESSAGES=300 FIX_PERF_PAYLOAD_SIZE=2048 FIX_RUNTIME_SECONDS=60 ./docker/fix-controller/run_all_scenarios.sh
 ```
 
+Realistic message payload seeds are used automatically for `conversation` and `performance` from:
+
+- `/workspace/data/samples/realistic` (inside containers, default)
+- override with `FIX_REALISTIC_MESSAGES_DIR`
+- override with a single file via `FIX_MESSAGE_FILE`
+
 Filter versions with `--fix-versions` / `-f` (case-insensitive, supports shorthand):
 
 ```bash
@@ -143,6 +149,13 @@ Run longer conversation (100 request/reply pairs by default):
 
 ```bash
 FIX_SCENARIO=conversation \
+docker compose -f docker/fix-controller/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
+```
+
+Use a specific realistic message file as payload seed source:
+
+```bash
+FIX_SCENARIO=conversation FIX_MESSAGE_FILE=/workspace/data/samples/realistic/FIX44_realistic_200.messages \
 docker compose -f docker/fix-controller/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
 ```
 

@@ -27,7 +27,7 @@
 set -euo pipefail
 
 XML_DIR="${1:-data/quickfix}"
-OUT_DIR="${2:-data/generated}"
+OUT_DIR="${2:-data/generated_src}"
 
 if [[ ! -d "${XML_DIR}" ]]; then
   echo "Dictionary directory does not exist: ${XML_DIR}" >&2

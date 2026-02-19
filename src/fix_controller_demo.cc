@@ -32,12 +32,14 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <fcntl.h>
 #include <iostream>
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace
@@ -140,6 +142,145 @@ std::vector<int> splitCsvInts(const std::string &input)
     return values;
 }
 
+std::string normalizeVersionToken(std::string begin_string)
+{
+    begin_string.erase(
+     std::remove_if(begin_string.begin(), begin_string.end(), [](const unsigned char ch) { return !std::isalnum(ch); }),
+     begin_string.end());
+    std::transform(begin_string.begin(), begin_string.end(), begin_string.begin(), [](const unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    return begin_string;
+}
+
+std::string extractPayloadSeed(const std::string &line)
+{
+    if(line.empty())
+    {
+        return {};
+    }
+
+    std::string normalized = line;
+    for(char &ch: normalized)
+    {
+        if(ch == 0x01)
+        {
+            ch = '|';
+        }
+    }
+
+    std::vector<std::pair<std::string, std::string>> tags;
+    std::size_t                                       start = 0;
+    while(start <= normalized.size())
+    {
+        const std::size_t next = normalized.find('|', start);
+        const std::size_t end  = (next == std::string::npos) ? normalized.size() : next;
+        const std::string token = normalized.substr(start, end - start);
+        const std::size_t sep   = token.find('=');
+        if(sep != std::string::npos && sep > 0 && sep + 1 < token.size())
+        {
+            tags.emplace_back(token.substr(0, sep), token.substr(sep + 1));
+        }
+        if(next == std::string::npos)
+        {
+            break;
+        }
+        start = next + 1;
+    }
+
+    static const char *preferred_tags[] = {"112", "58", "11", "55", "48", "22", "167", "1"};
+    for(const char *tag: preferred_tags)
+    {
+        for(const auto &[k, v]: tags)
+        {
+            if(k != tag)
+            {
+                continue;
+            }
+            std::string payload = trimCopy(v);
+            payload.erase(std::remove(payload.begin(), payload.end(), '|'), payload.end());
+            payload.erase(std::remove(payload.begin(), payload.end(), '\x01'), payload.end());
+            if(!payload.empty())
+            {
+                return payload;
+            }
+        }
+    }
+    return {};
+}
+
+std::vector<std::string> loadPayloadSeeds(const std::string &begin_string,
+                                          const std::string &message_file,
+                                          const std::string &message_dir)
+{
+    std::string resolved_file = trimCopy(message_file);
+    if(resolved_file.empty() && !trimCopy(message_dir).empty())
+    {
+        const std::string token = normalizeVersionToken(begin_string);
+        if(!token.empty())
+        {
+            resolved_file = trimCopy(message_dir);
+            if(!resolved_file.empty() && resolved_file.back() != '/')
+            {
+                resolved_file.push_back('/');
+            }
+            resolved_file += token + "_realistic_200.messages";
+        }
+    }
+    if(resolved_file.empty())
+    {
+        return {};
+    }
+
+    std::ifstream input(resolved_file);
+    if(!input.is_open())
+    {
+        std::cerr << "Warning: unable to open FIX_MESSAGE_FILE '" << resolved_file
+                  << "'. Falling back to synthetic payloads.\n";
+        return {};
+    }
+
+    std::vector<std::string> seeds;
+    std::string              line;
+    while(std::getline(input, line))
+    {
+        const std::string payload = extractPayloadSeed(trimCopy(line));
+        if(!payload.empty())
+        {
+            seeds.push_back(payload);
+        }
+    }
+
+    if(seeds.empty())
+    {
+        std::cerr << "Warning: no usable payload seeds found in '" << resolved_file
+                  << "'. Falling back to synthetic payloads.\n";
+    }
+    else
+    {
+        std::cout << "[client] loaded " << seeds.size() << " realistic payload seeds from " << resolved_file << '\n';
+    }
+    return seeds;
+}
+
+std::string buildRequestId(const std::string &scenario,
+                           const std::vector<std::string> &payload_seeds,
+                           const int index,
+                           const int perf_payload_size)
+{
+    if(payload_seeds.empty())
+    {
+        return longToken("LOAD", index, perf_payload_size);
+    }
+
+    const std::string &seed = payload_seeds[static_cast<std::size_t>(index - 1) % payload_seeds.size()];
+    if(scenario == "performance")
+    {
+        return longToken(seed, index, perf_payload_size);
+    }
+    return seed + '-' + std::to_string(index);
+}
+
 void printSafeFix(const std::string &message);
 
 int runSingleSession(const std::string &role,
@@ -149,7 +290,9 @@ int runSingleSession(const std::string &role,
                      const std::string &scenario,
                      const int          conversation_messages,
                      const int          perf_payload_size,
-                     const int          runtime_seconds)
+                     const int          runtime_seconds,
+                     const std::string &message_file,
+                     const std::string &message_dir)
 {
     const bool client_role        = (role == "client");
     const bool load_test_scenario = (scenario == "conversation" || scenario == "performance");
@@ -206,6 +349,9 @@ int runSingleSession(const std::string &role,
     int  sent_requests      = 0;
     int  received_replies   = 0;
     auto deadline           = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
+    const std::vector<std::string> payload_seeds =
+     (client_role && load_test_scenario) ? loadPayloadSeeds(begin_string, message_file, message_dir)
+                                         : std::vector<std::string>{};
 
     while(std::chrono::steady_clock::now() < deadline)
     {
@@ -278,7 +424,7 @@ int runSingleSession(const std::string &role,
                 {
                     for(int i = 0; i < conversation_messages; ++i)
                     {
-                        const std::string test_req_id = longToken("LOAD", i + 1, perf_payload_size);
+                        const std::string test_req_id = buildRequestId(scenario, payload_seeds, i + 1, perf_payload_size);
                         const std::string request     = controller.buildTestRequest(test_req_id);
                         std::cout << "[client] -> ";
                         printSafeFix(request);
@@ -448,6 +594,8 @@ int main()
     const int         conversation_messages = std::max(0, envOrDefaultInt("FIX_CONVERSATION_MESSAGES", 100));
     const int         perf_payload_size     = std::max(32, envOrDefaultInt("FIX_PERF_PAYLOAD_SIZE", 512));
     const int         runtime_seconds       = std::max(1, envOrDefaultInt("FIX_RUNTIME_SECONDS", 30));
+    const std::string message_file          = envOrDefault("FIX_MESSAGE_FILE", "");
+    const std::string message_dir           = envOrDefault("FIX_REALISTIC_MESSAGES_DIR", "");
 
     if(role == "exchange")
     {
@@ -487,7 +635,9 @@ int main()
                                         scenario,
                                         conversation_messages,
                                         perf_payload_size,
-                                        runtime_seconds);
+                                        runtime_seconds,
+                                        message_file,
+                                        message_dir);
         if(rc != 0)
         {
             final_rc = rc;

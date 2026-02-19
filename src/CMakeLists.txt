@@ -35,7 +35,7 @@ add_library(fixdecoder
 target_include_directories(fixdecoder
         PUBLIC
         ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/data/generated
+        ${CMAKE_SOURCE_DIR}/data/generated_src
         ${CMAKE_SOURCE_DIR}/MessageToObject/include
 )
 

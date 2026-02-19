@@ -52,6 +52,7 @@ services:
       - "${FIX_EXCHANGE_1_HOST_PORT:-15001}:5001"
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 
@@ -71,6 +72,7 @@ services:
       - "${FIX_EXCHANGE_2_HOST_PORT:-15002}:5001"
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 
@@ -90,8 +92,11 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
+      FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 
@@ -111,8 +116,11 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
+      FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 
@@ -132,8 +140,11 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
+      FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 
@@ -153,8 +164,11 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
+      FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 
@@ -174,8 +188,11 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
+      FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
     volumes:
       - fix-controller-bin:/app:ro
+      - ../..:/workspace:ro
     networks:
       - fixnet
 

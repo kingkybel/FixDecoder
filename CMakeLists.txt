@@ -111,7 +111,7 @@ add_custom_target(update_fix_dicts ALL
 )
 
 add_custom_target(generate_fix_decoder_maps ALL
-        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_fix_decoder_maps.sh" "${CMAKE_CURRENT_SOURCE_DIR}/data/quickfix" "${CMAKE_CURRENT_SOURCE_DIR}/data/generated"
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_fix_decoder_maps.sh" "${CMAKE_CURRENT_SOURCE_DIR}/data/quickfix" "${CMAKE_CURRENT_SOURCE_DIR}/data/generated_src"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Generating FIX decoder map headers from dictionaries"
         DEPENDS update_fix_dicts
@@ -123,6 +123,13 @@ add_custom_target(download_fix_samples ALL
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Downloading QuickFIX sample messages"
         DEPENDS update_fix_dicts
+        VERBATIM
+)
+
+add_custom_target(download_realistic_fix_samples ALL
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_realistic_fix_samples.py"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "Downloading market reference data and generating realistic FIX sample messages"
         VERBATIM
 )
 

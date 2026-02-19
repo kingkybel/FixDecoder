@@ -187,6 +187,10 @@ class SampleMessagesTest : public ::testing::TestWithParam<SampleSet>
 {
 };
 
+class RealisticSubsetMessagesTest : public ::testing::TestWithParam<SampleSet>
+{
+};
+
 }  // namespace
 
 TEST(DictionaryTest, LoadsFileAndResolvesFieldAndMessage)
@@ -357,6 +361,31 @@ TEST_P(SampleMessagesTest, MutatedSamplesFailDecodeChecks)
     }
 }
 
+TEST_P(RealisticSubsetMessagesTest, RealisticSubsetDecodes)
+{
+    const auto sample = GetParam();
+
+    fix::Decoder decoder;
+    std::string  error;
+    ASSERT_TRUE(
+     decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
+                                           &error))
+     << error;
+
+    const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "test/test_messages" / sample.file_name;
+    const auto messages  = readMessageFile(file_path);
+
+    ASSERT_EQ(messages.size(), 20U) << "Expected 20 realistic messages in " << file_path.string();
+
+    for(const auto &message: messages)
+    {
+        const fix::DecodedMessage decoded = decoder.decode(message);
+        EXPECT_TRUE(looksValidDecode(decoded)) << "Expected valid decode for: " << message;
+        EXPECT_EQ(decoded.begin_string, sample.begin_string) << "Unexpected BeginString for: " << message;
+        EXPECT_GE(decoded.fields.size(), 6U) << "Unexpectedly short decoded field set for: " << message;
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(PerFixVersion,
                          SampleMessagesTest,
                          ::testing::Values(SampleSet{"FIX40.messages", "FIX.4.0"},
@@ -368,6 +397,30 @@ INSTANTIATE_TEST_SUITE_P(PerFixVersion,
                                            SampleSet{"FIX50SP1.messages", "FIXT.1.1"},
                                            SampleSet{"FIX50SP2.messages", "FIXT.1.1"},
                                            SampleSet{"FIXT11.messages", "FIXT.1.1"}),
+                         [](const testing::TestParamInfo<SampleSet> &info)
+                         {
+                             std::string name = info.param.file_name;
+                             for(char &ch: name)
+                             {
+                                 if(!std::isalnum(static_cast<unsigned char>(ch)))
+                                 {
+                                     ch = '_';
+                                 }
+                             }
+                             return name;
+                         });
+
+INSTANTIATE_TEST_SUITE_P(PerFixVersionRealisticSubset,
+                         RealisticSubsetMessagesTest,
+                         ::testing::Values(SampleSet{"FIX40_realistic_20.messages", "FIX.4.0"},
+                                           SampleSet{"FIX41_realistic_20.messages", "FIX.4.1"},
+                                           SampleSet{"FIX42_realistic_20.messages", "FIX.4.2"},
+                                           SampleSet{"FIX43_realistic_20.messages", "FIX.4.3"},
+                                           SampleSet{"FIX44_realistic_20.messages", "FIX.4.4"},
+                                           SampleSet{"FIX50_realistic_20.messages", "FIXT.1.1"},
+                                           SampleSet{"FIX50SP1_realistic_20.messages", "FIXT.1.1"},
+                                           SampleSet{"FIX50SP2_realistic_20.messages", "FIXT.1.1"},
+                                           SampleSet{"FIXT11_realistic_20.messages", "FIXT.1.1"}),
                          [](const testing::TestParamInfo<SampleSet> &info)
                          {
                              std::string name = info.param.file_name;
