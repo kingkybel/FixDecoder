@@ -68,8 +68,8 @@ set(CMAKE_FIND_LIBRARY_PREFIXES lib)
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_EXE_LINKER_FLAGS "-static")
-option(FIXDECODER_FETCH_TINYXML2 "Fetch tinyxml2 with CMake" ON)
-option(FIXDECODER_FETCH_GOOGLETEST "Fetch GoogleTest with CMake" ON)
+option(FIXDECODER_FETCH_TINYXML2 "Fetch tinyxml2 with CMake" OFF)
+option(FIXDECODER_FETCH_GOOGLETEST "Fetch GoogleTest with CMake" OFF)
 
 include(FetchContent)
 
@@ -136,7 +136,7 @@ add_custom_target(download_realistic_fix_samples ALL
 enable_testing()
 
 add_subdirectory(src)
-add_subdirectory(test)
+add_subdirectory(test/unit)
 
 set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-checks=* -p ${CMAKE_SOURCE_DIR}/build")
 

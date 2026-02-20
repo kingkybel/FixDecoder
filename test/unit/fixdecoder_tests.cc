@@ -372,7 +372,7 @@ TEST_P(RealisticSubsetMessagesTest, RealisticSubsetDecodes)
                                            &error))
      << error;
 
-    const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "test/test_messages" / sample.file_name;
+    const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "test/unit/test_messages" / sample.file_name;
     const auto messages  = readMessageFile(file_path);
 
     ASSERT_EQ(messages.size(), 20U) << "Expected 20 realistic messages in " << file_path.string();

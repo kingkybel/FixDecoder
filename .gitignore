@@ -2,6 +2,7 @@
 /cmake-build-*
 /.idea
 /data
-/docker/fix-controller/logs
+/test/integration/logs
+/test/integration/profiles
 
 

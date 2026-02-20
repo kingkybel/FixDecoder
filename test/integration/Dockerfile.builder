@@ -20,8 +20,21 @@ RUN set -eux; \
             elif [ "${COMPILER_FAMILY}" = "clang" ]; then \
                 if [ -n "${COMPILER_VERSION}" ] && apt-cache show "clang-${COMPILER_VERSION}" >/dev/null 2>&1; then \
                     apt-get install -y --no-install-recommends "clang-${COMPILER_VERSION}" "lld-${COMPILER_VERSION}"; \
+                    if apt-cache show "libclang-rt-${COMPILER_VERSION}-dev" >/dev/null 2>&1; then \
+                        apt-get install -y --no-install-recommends "libclang-rt-${COMPILER_VERSION}-dev"; \
+                    elif apt-cache show "compiler-rt-${COMPILER_VERSION}" >/dev/null 2>&1; then \
+                        apt-get install -y --no-install-recommends "compiler-rt-${COMPILER_VERSION}"; \
+                    elif apt-cache show "libclang-rt-dev" >/dev/null 2>&1; then \
+                        apt-get install -y --no-install-recommends libclang-rt-dev; \
+                    else \
+                        apt-get install -y --no-install-recommends compiler-rt; \
+                    fi; \
                 else \
-                    apt-get install -y --no-install-recommends clang lld; \
+                    if apt-cache show "libclang-rt-dev" >/dev/null 2>&1; then \
+                        apt-get install -y --no-install-recommends clang lld libclang-rt-dev; \
+                    else \
+                        apt-get install -y --no-install-recommends clang lld compiler-rt; \
+                    fi; \
                 fi; \
             else \
                 echo "Unsupported COMPILER_FAMILY: ${COMPILER_FAMILY}" >&2; \
@@ -44,7 +57,7 @@ RUN set -eux; \
         alpine) \
             apk add --no-cache bash ca-certificates cmake git make build-base; \
             if [ "${COMPILER_FAMILY}" = "clang" ]; then \
-                apk add --no-cache clang lld g++; \
+                apk add --no-cache clang lld g++ compiler-rt clang-rtlib llvm; \
             fi; \
             printf '%s\n' \
                 'export CFLAGS="${CFLAGS:+$CFLAGS }-Dfseeko64=fseeko -Dftello64=ftello"' \

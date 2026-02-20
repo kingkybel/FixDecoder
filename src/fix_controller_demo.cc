@@ -348,10 +348,15 @@ int runSingleSession(const std::string &role,
     bool scenario_complete  = !(load_test_scenario && client_role);
     int  sent_requests      = 0;
     int  received_replies   = 0;
+    int  next_request_index = 1;
     auto deadline           = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
     const std::vector<std::string> payload_seeds =
      (client_role && load_test_scenario) ? loadPayloadSeeds(begin_string, message_file, message_dir)
                                          : std::vector<std::string>{};
+    const bool loop_until_runtime =
+     (client_role && load_test_scenario && !payload_seeds.empty()
+      && envOrDefaultInt("FIX_LOOP_PAYLOADS_UNTIL_RUNTIME", 0) > 0);
+    const int max_in_flight = std::max(1, envOrDefaultInt("FIX_MAX_IN_FLIGHT", 64));
 
     while(std::chrono::steady_clock::now() < deadline)
     {
@@ -422,9 +427,11 @@ int runSingleSession(const std::string &role,
                 }
                 else if(load_test_scenario)
                 {
-                    for(int i = 0; i < conversation_messages; ++i)
+                    const int total_requests = loop_until_runtime ? max_in_flight : conversation_messages;
+                    for(int i = 0; i < total_requests; ++i)
                     {
-                        const std::string test_req_id = buildRequestId(scenario, payload_seeds, i + 1, perf_payload_size);
+                        const std::string test_req_id =
+                         buildRequestId(scenario, payload_seeds, next_request_index, perf_payload_size);
                         const std::string request     = controller.buildTestRequest(test_req_id);
                         std::cout << "[client] -> ";
                         printSafeFix(request);
@@ -433,9 +440,28 @@ int runSingleSession(const std::string &role,
                             return 4;
                         }
                         ++sent_requests;
+                        ++next_request_index;
                     }
                 }
                 scenario_sent = true;
+            }
+            else if(client_role && load_test_scenario && loop_until_runtime)
+            {
+                while((sent_requests - received_replies) < max_in_flight
+                      && std::chrono::steady_clock::now() < deadline)
+                {
+                    const std::string test_req_id =
+                     buildRequestId(scenario, payload_seeds, next_request_index, perf_payload_size);
+                    const std::string request = controller.buildTestRequest(test_req_id);
+                    std::cout << "[client] -> ";
+                    printSafeFix(request);
+                    if(!connection.sendAll(request))
+                    {
+                        return 4;
+                    }
+                    ++sent_requests;
+                    ++next_request_index;
+                }
             }
         }
 
@@ -450,13 +476,18 @@ int runSingleSession(const std::string &role,
             break;
         }
 
-        if(load_test_scenario && scenario_sent && received_replies >= sent_requests)
+        if(load_test_scenario && scenario_sent && !loop_until_runtime && received_replies >= sent_requests)
         {
             scenario_complete = true;
             break;
         }
 
         std::this_thread::sleep_for(50ms);
+    }
+
+    if(loop_until_runtime && handshake_complete)
+    {
+        scenario_complete = true;
     }
 
     const std::string logout = controller.buildLogout("Demo complete");

@@ -1,0 +1,19 @@
+FROM alpine:3.20
+
+RUN apk add --no-cache \
+    bash \
+    ca-certificates \
+    git \
+    perl \
+    perf \
+    python3
+
+RUN git clone --depth 1 https://github.com/brendangregg/FlameGraph.git /opt/FlameGraph
+
+COPY test/integration/profiler_ui.sh /usr/local/bin/profiler-ui
+RUN chmod +x /usr/local/bin/profiler-ui
+
+WORKDIR /profiles
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/profiler-ui"]

@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-COMPOSE_FILE="${REPO_ROOT}/docker/fix-controller/compose.yml"
-LOG_DIR="${REPO_ROOT}/docker/fix-controller/logs"
+COMPOSE_FILE="${REPO_ROOT}/test/integration/compose.yml"
+LOG_DIR="${REPO_ROOT}/test/integration/logs"
 mkdir -p "${LOG_DIR}"
 LOG_FILE="${LOG_FILE:-${LOG_DIR}/run_all_scenarios_$(date +%Y%m%d_%H%M%S).log}"
 TARGET_BASE_IMAGE="${FIX_BASE_IMAGE:-ubuntu:24.04}"

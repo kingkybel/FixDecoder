@@ -51,7 +51,8 @@ The decoder follows four steps:
 - `scripts/` helper scripts to fetch dictionaries and sample messages
 - `data/quickfix/` dictionary XML files
 - `data/samples/valid/` valid sample messages per FIX version
-- `test/` GoogleTest suite
+- `test/unit/` GoogleTest suite and unit test sample messages
+- `test/integration/` dockerized integration/performance harness
 
 ## Build and Installation
 
@@ -255,6 +256,10 @@ The test suite includes:
 - invalid-message mutation tests derived from valid sample messages
 - controller unit tests for logon handshake, out-of-sync sequence detection, and garbled-message rejection
 
+Unit-test message fixtures are located in:
+
+- `test/unit/test_messages/`
+
 ## Session Controller and Docker Integration Tests
 
 The new session-level controller (`fix::Controller`) is available in:
@@ -264,38 +269,48 @@ The new session-level controller (`fix::Controller`) is available in:
 
 Containerized peer-to-peer tests are defined in:
 
-- `docker/fix-controller/compose.yml`
-- `docker/fix-controller/Dockerfile.builder`
-- `docker/fix-controller/Dockerfile.runtime`
-- `docker/fix-controller/run_all_scenarios.sh`
-- Detailed Docker test documentation: [`docker/fix-controller/README.md`](docker/fix-controller/README.md)
+- `test/integration/compose.yml`
+- `test/integration/Dockerfile.builder`
+- `test/integration/Dockerfile.runtime`
+- `test/integration/run_all_scenarios.sh`
+- Detailed Docker test documentation: [`test/integration/README.md`](test/integration/README.md)
+
+Profile hot paths + open dashboard:
+
+```bash
+./test/integration/profile_hotpaths.sh --duration 60
+FIX_UID=$(id -u) FIX_GID=$(id -g) FIX_PROFILE_UI_PORT=8080 docker compose -f test/integration/compose.yml --profile profiler-ui up --build -d fix-profiler-ui
+xdg-open "http://localhost:8080/"
+```
+
+`http://localhost:8080/` redirects to `test/integration/profiles/latest/index.html`.
 
 Run FIX handshake containers:
 
 ```bash
-docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+docker compose -f test/integration/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
 ```
 
 Run out-of-sync or garbled scenarios:
 
 ```bash
-FIX_SCENARIO=out_of_sync docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
-FIX_SCENARIO=garbled docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+FIX_SCENARIO=out_of_sync docker compose -f test/integration/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
+FIX_SCENARIO=garbled docker compose -f test/integration/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
 ```
 
 Run longer request/reply conversations and performance loads:
 
 ```bash
-FIX_SCENARIO=conversation docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
-FIX_SCENARIO=performance FIX_CONVERSATION_MESSAGES=300 FIX_PERF_PAYLOAD_SIZE=2048 FIX_RUNTIME_SECONDS=60 docker compose -f docker/fix-controller/compose.yml up --build --abort-on-container-exit
+FIX_SCENARIO=conversation docker compose -f test/integration/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
+FIX_SCENARIO=performance FIX_CONVERSATION_MESSAGES=300 FIX_PERF_PAYLOAD_SIZE=2048 FIX_RUNTIME_SECONDS=60 docker compose -f test/integration/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
 ```
 
 Run one client against multiple exchanges and enable a second client:
 
 ```bash
-docker compose -f docker/fix-controller/compose.yml --profile multi-exchange up --build --abort-on-container-exit
-docker compose -f docker/fix-controller/compose.yml --profile multi-client up --build --abort-on-container-exit
-docker compose -f docker/fix-controller/compose.yml --profile multi-mesh up --build --abort-on-container-exit
+docker compose -f test/integration/compose.yml --profile multi-exchange up --build --abort-on-container-failure --exit-code-from fix-client-multi
+docker compose -f test/integration/compose.yml --profile multi-client up --build --abort-on-container-failure --exit-code-from fix-client-2
+docker compose -f test/integration/compose.yml --profile multi-mesh up --build --abort-on-container-failure --exit-code-from fix-client-mesh-1
 ```
 
 Conversation sample data:

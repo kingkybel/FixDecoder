@@ -1,11 +1,29 @@
 name: fix-controller-test
 
 services:
+  fix-profiler-ui:
+    profiles: [ "profiler-ui" ]
+    build:
+      context: ../..
+      dockerfile: test/integration/Dockerfile.profiler
+    image: ${FIX_PROFILER_IMAGE:-fix-controller-profiler-ui:alpine}
+    environment:
+      PROFILE_ROOT: /profiles
+      PROFILE_UI_HOST: 0.0.0.0
+      PROFILE_UI_PORT: 8080
+      AUTO_FLAMEGRAPH: ${FIX_AUTO_FLAMEGRAPH:-1}
+      FORCE_FLAMEGRAPH_REBUILD: ${FIX_FORCE_FLAMEGRAPH_REBUILD:-0}
+    ports:
+      - "${FIX_PROFILE_UI_PORT:-8080}:8080"
+    user: "${FIX_UID:-1000}:${FIX_GID:-1000}"
+    volumes:
+      - ./profiles:/profiles
+
   fix-builder:
     profiles: [ "build-bin" ]
     build:
       context: ../..
-      dockerfile: docker/fix-controller/Dockerfile.builder
+      dockerfile: test/integration/Dockerfile.builder
       args:
         BASE_IMAGE: ${FIX_BASE_IMAGE:-ubuntu:24.04}
         COMPILER_FAMILY: ${FIX_COMPILER_FAMILY:-g++}
@@ -36,7 +54,7 @@ services:
   fix-exchange-1:
     build:
       context: ../..
-      dockerfile: docker/fix-controller/Dockerfile.runtime
+      dockerfile: test/integration/Dockerfile.runtime
       args:
         BASE_IMAGE: ${FIX_BASE_IMAGE:-ubuntu:24.04}
     image: ${FIX_RUNTIME_IMAGE:-fix-controller-runtime:ubuntu-24.04-gxx-latest}
@@ -48,11 +66,13 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     ports:
       - "${FIX_EXCHANGE_1_HOST_PORT:-15001}:5001"
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
@@ -68,11 +88,13 @@ services:
       FIX_CONVERSATION_MESSAGES: ${FIX_CONVERSATION_MESSAGES:-100}
       FIX_PERF_PAYLOAD_SIZE: ${FIX_PERF_PAYLOAD_SIZE:-512}
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     ports:
       - "${FIX_EXCHANGE_2_HOST_PORT:-15002}:5001"
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
@@ -94,9 +116,11 @@ services:
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
       FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
       FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
@@ -118,9 +142,11 @@ services:
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
       FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
       FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
@@ -142,9 +168,11 @@ services:
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
       FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
       FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
@@ -166,9 +194,11 @@ services:
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
       FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
       FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
@@ -190,9 +220,11 @@ services:
       FIX_RUNTIME_SECONDS: ${FIX_RUNTIME_SECONDS:-30}
       FIX_MESSAGE_FILE: ${FIX_MESSAGE_FILE:-}
       FIX_REALISTIC_MESSAGES_DIR: ${FIX_REALISTIC_MESSAGES_DIR:-/workspace/data/samples/realistic}
+      LLVM_PROFILE_FILE: ${LLVM_PROFILE_FILE:-}
     volumes:
       - fix-controller-bin:/app:ro
       - ../..:/workspace:ro
+      - ${FIX_PROFILE_OUTPUT_HOST_DIR:-/tmp/fix-controller-profiles}:/profiles
     networks:
       - fixnet
 
