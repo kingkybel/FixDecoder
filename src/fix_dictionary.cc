@@ -101,6 +101,11 @@ bool Dictionary::isRequiredAttr(const char *value)
 
 bool Dictionary::loadFromFile(const std::string &path, std::string *error)
 {
+    fields_.clear();
+    field_name_index_.clear();
+    messages_.clear();
+    components_.clear();
+
     tinyxml2::XMLDocument doc;
     const auto            status = doc.LoadFile(path.c_str());
     if(status != tinyxml2::XML_SUCCESS)
@@ -152,6 +157,10 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
             if(number > 0)
             {
                 def.number = static_cast<std::uint32_t>(number);
+                if(!def.name.empty())
+                {
+                    field_name_index_.insert_or_assign(def.name, def.number);
+                }
                 fields_.insert_or_assign(def.number, std::move(def));
             }
         }
@@ -208,10 +217,30 @@ const FieldDef *Dictionary::fieldByNumber(const std::uint32_t number) const
     return &it->second;
 }
 
+const FieldDef *Dictionary::fieldByName(const std::string &name) const
+{
+    const auto it = field_name_index_.find(name);
+    if(it == field_name_index_.end())
+    {
+        return nullptr;
+    }
+    return fieldByNumber(it->second);
+}
+
 const MessageDef *Dictionary::messageByType(const std::string &msg_type) const
 {
     const auto it = messages_.find(msg_type);
     if(it == messages_.end())
+    {
+        return nullptr;
+    }
+    return &it->second;
+}
+
+const std::vector<Member> *Dictionary::componentByName(const std::string &name) const
+{
+    const auto it = components_.find(name);
+    if(it == components_.end())
     {
         return nullptr;
     }

@@ -40,6 +40,7 @@
 #include <cctype>
 #include <charconv>
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace fix
@@ -187,6 +188,248 @@ namespace
     {
         static const DecodedObjectNode::Value missing_value{};
         return missing_value;
+    }
+
+    struct ValidationField
+    {
+        std::uint32_t tag        = 0;
+        std::size_t   value_begin = 0;
+        std::size_t   value_end   = 0;
+    };
+
+    using ValidationErrors = std::vector<std::string>;
+
+    std::optional<std::uint32_t> firstMemberTag(const Dictionary &dict, const std::vector<Member> &members);
+
+    std::optional<std::uint32_t> firstMemberTag(const Dictionary &dict, const Member &member)
+    {
+        if(member.kind == MemberKind::Field || member.kind == MemberKind::Group)
+        {
+            if(const FieldDef *def = dict.fieldByName(member.name))
+            {
+                return def->number;
+            }
+            return std::nullopt;
+        }
+
+        const std::vector<Member> *component_members = dict.componentByName(member.name);
+        if(!component_members)
+        {
+            return std::nullopt;
+        }
+        return firstMemberTag(dict, *component_members);
+    }
+
+    std::optional<std::uint32_t> firstMemberTag(const Dictionary &dict, const std::vector<Member> &members)
+    {
+        for(const Member &member: members)
+        {
+            if(const std::optional<std::uint32_t> tag = firstMemberTag(dict, member))
+            {
+                return tag;
+            }
+        }
+        return std::nullopt;
+    }
+
+    bool parseMembersForValidation(const Dictionary                 &dict,
+                                   const std::vector<Member>       &members,
+                                   const std::string_view           message,
+                                   const std::vector<ValidationField> &fields,
+                                   std::size_t                     &index,
+                                   ValidationErrors                &errors,
+                                   bool                             enforce_presence);
+
+    bool parseMemberForValidation(const Dictionary                  &dict,
+                                  const Member                      &member,
+                                  const std::string_view             message,
+                                  const std::vector<ValidationField> &fields,
+                                  std::size_t                       &index,
+                                  ValidationErrors                  &errors,
+                                  const bool                         enforce_presence)
+    {
+        if(member.kind == MemberKind::Field)
+        {
+            const FieldDef *def = dict.fieldByName(member.name);
+            if(!def)
+            {
+                return false;
+            }
+
+            if(index < fields.size() && fields[index].tag == def->number)
+            {
+                ++index;
+                return true;
+            }
+
+            if(member.required && enforce_presence)
+            {
+                errors.emplace_back("Missing required field '" + member.name + "'");
+            }
+            return false;
+        }
+
+        if(member.kind == MemberKind::Component)
+        {
+            const std::vector<Member> *component_members = dict.componentByName(member.name);
+            if(!component_members)
+            {
+                if(member.required && enforce_presence)
+                {
+                    errors.emplace_back("Missing required component '" + member.name + "'");
+                }
+                return false;
+            }
+
+            const std::optional<std::uint32_t> expected_tag = firstMemberTag(dict, *component_members);
+            if(expected_tag && (index >= fields.size() || fields[index].tag != *expected_tag))
+            {
+                if(member.required && enforce_presence)
+                {
+                    errors.emplace_back("Missing required component '" + member.name + "'");
+                }
+                return false;
+            }
+
+            const std::size_t start_index = index;
+            parseMembersForValidation(dict, *component_members, message, fields, index, errors, true);
+            const bool consumed = index > start_index;
+
+            if(member.required && enforce_presence && !consumed)
+            {
+                errors.emplace_back("Missing required component '" + member.name + "'");
+            }
+            return consumed;
+        }
+
+        const FieldDef *count_def = dict.fieldByName(member.name);
+        if(!count_def)
+        {
+            return false;
+        }
+
+        if(index >= fields.size() || fields[index].tag != count_def->number)
+        {
+            if(member.required && enforce_presence)
+            {
+                errors.emplace_back("Missing required group-count field '" + member.name + "'");
+            }
+            return false;
+        }
+
+        const ValidationField &count_field = fields[index];
+        const std::string_view count_value =
+         message.substr(count_field.value_begin, count_field.value_end - count_field.value_begin);
+        int declared_count   = 0;
+        const auto [ptr, ec] = std::from_chars(count_value.data(), count_value.data() + count_value.size(), declared_count);
+        if(ec != std::errc{} || ptr != count_value.data() + count_value.size() || declared_count < 0)
+        {
+            errors.emplace_back("Invalid group-count value for '" + member.name + "'");
+            ++index;
+            return true;
+        }
+
+        ++index;
+        std::size_t actual_count = 0;
+        for(int i = 0; i < declared_count; ++i)
+        {
+            const std::size_t entry_start = index;
+            parseMembersForValidation(dict, member.children, message, fields, index, errors, true);
+            if(index == entry_start)
+            {
+                break;
+            }
+            ++actual_count;
+        }
+
+        if(actual_count != static_cast<std::size_t>(declared_count))
+        {
+            errors.emplace_back("Group '" + member.name + "' count mismatch: declared "
+                                + std::to_string(declared_count) + ", actual " + std::to_string(actual_count));
+        }
+
+        return true;
+    }
+
+    bool parseMembersForValidation(const Dictionary                 &dict,
+                                   const std::vector<Member>       &members,
+                                   const std::string_view           message,
+                                   const std::vector<ValidationField> &fields,
+                                   std::size_t                     &index,
+                                   ValidationErrors                &errors,
+                                   const bool                       enforce_presence)
+    {
+        bool consumed_any = false;
+        for(const Member &member: members)
+        {
+            const std::size_t before = index;
+            parseMemberForValidation(dict, member, message, fields, index, errors, enforce_presence);
+            if(index > before)
+            {
+                consumed_any = true;
+            }
+        }
+        return consumed_any;
+    }
+
+    ValidationErrors validateStructure(const Dictionary                   &dict,
+                                       const std::string                  &msg_type,
+                                       const std::string_view              message,
+                                       const std::vector<ValidationField> &fields)
+    {
+        ValidationErrors errors;
+        if(msg_type.empty())
+        {
+            return errors;
+        }
+
+        const MessageDef *message_def = dict.messageByType(msg_type);
+        if(!message_def)
+        {
+            return errors;
+        }
+
+        std::size_t index = 0;
+        bool        positioned = false;
+        if(const std::optional<std::uint32_t> start_tag = firstMemberTag(dict, message_def->members))
+        {
+            while(index < fields.size())
+            {
+                if(fields[index].tag == *start_tag)
+                {
+                    positioned = true;
+                    break;
+                }
+                ++index;
+            }
+        }
+
+        if(!positioned)
+        {
+            index = 0;
+            while(index < fields.size())
+            {
+                bool matches_member = false;
+                for(const Member &member: message_def->members)
+                {
+                    const std::optional<std::uint32_t> member_tag = firstMemberTag(dict, member);
+                    if(member_tag && fields[index].tag == *member_tag)
+                    {
+                        matches_member = true;
+                        break;
+                    }
+                }
+                if(matches_member)
+                {
+                    break;
+                }
+                ++index;
+            }
+        }
+
+        // Enforce required members for message-level semantic validation.
+        parseMembersForValidation(dict, message_def->members, message, fields, index, errors, true);
+        return errors;
     }
 
 }  // namespace
@@ -465,8 +708,13 @@ DecodedMessage Decoder::decode(const std::string &raw) const
 
     decoded.fields.reserve(fields.size());
 
+    std::vector<ValidationField> validation_fields;
+    validation_fields.reserve(fields.size());
+
     for(const auto &parsed: fields)
     {
+        validation_fields.push_back(ValidationField{parsed.tag, parsed.value_begin, parsed.value_end});
+
         DecodedField field;
         field.tag   = parsed.tag;
         field.value = message.substr(parsed.value_begin, parsed.value_end - parsed.value_begin);
@@ -504,6 +752,12 @@ DecodedMessage Decoder::decode(const std::string &raw) const
         decoded.fields.push_back(std::move(field));
     }
 
+    if(dict)
+    {
+        decoded.validation_errors = validateStructure(*dict, decoded.msg_type, message, validation_fields);
+        decoded.structurally_valid = decoded.validation_errors.empty();
+    }
+
     return decoded;
 }
 
@@ -515,6 +769,10 @@ DecodedObject Decoder::decodeObject(const std::string &raw) const
     const std::string_view message(decoded.normalized_message);
     const auto             fields          = splitTags(message);
     auto                   version_decoder = selectVersionDecoder(message);
+    const Dictionary      *dict            = selectDictionary(message, fields);
+
+    std::vector<ValidationField> validation_fields;
+    validation_fields.reserve(fields.size());
 
     if(!version_decoder.begin_string.empty())
     {
@@ -523,6 +781,8 @@ DecodedObject Decoder::decodeObject(const std::string &raw) const
 
     for(const auto &parsed: fields)
     {
+        validation_fields.push_back(ValidationField{parsed.tag, parsed.value_begin, parsed.value_end});
+
         const std::string_view value = message.substr(parsed.value_begin, parsed.value_end - parsed.value_begin);
         if(parsed.tag == 8 && decoded.begin_string.empty())
         {
@@ -552,6 +812,12 @@ DecodedObject Decoder::decodeObject(const std::string &raw) const
         {
             it->second.value = std::move(typed_value);
         }
+    }
+
+    if(dict)
+    {
+        decoded.validation_errors = validateStructure(*dict, decoded.msg_type, message, validation_fields);
+        decoded.structurally_valid = decoded.validation_errors.empty();
     }
 
     return decoded;

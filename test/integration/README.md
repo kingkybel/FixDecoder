@@ -1,5 +1,7 @@
 # FIX Controller Container Tests
 
+[Back to main README](../../README.md)
+
 This directory contains Docker-based integration tests for the session-level FIX controller.
 Unit tests live separately under `test/unit/`.
 
@@ -240,7 +242,7 @@ docker compose -f test/integration/compose.yml --profile single-client up --buil
 Use a specific realistic message file as payload seed source:
 
 ```bash
-FIX_SCENARIO=conversation FIX_MESSAGE_FILE=/workspace/data/samples/realistic/FIX44_realistic_200.messages \
+FIX_SCENARIO=conversation FIX_MESSAGE_FILE=/workspace/data/samples/realistic/FIX44_realistic_correct_850.messages \
 docker compose -f test/integration/compose.yml --profile single-client up --build --abort-on-container-failure --exit-code-from fix-client-1
 ```
 

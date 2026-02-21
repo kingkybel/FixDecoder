@@ -7,7 +7,8 @@ It can return:
 
 - `fix::DecodedMessage` for field-by-field inspection (`tag`, `name`, `type`, typed value)
 - `fix::DecodedObject` for enum/tag-indexed access (`msg[FieldTag::kX]`)
-  It supports:
+
+It supports:
 - `FIX.4.0`
 - `FIX.4.1`
 - `FIX.4.2`
@@ -21,11 +22,12 @@ The project includes:
 - `fixdecoder` static library
 - `example_usage` CLI executable
 - `fix_controller_demo` CLI executable for session-level FIX protocol exchanges
+- `tools/fix-web-ui` Dockerized web UI for interactive parsing/validation
 - GoogleTest-based test suite with version-specific sample messages
 
 ## How It Works
 
-The decoder follows four steps:
+The decoder follows five steps:
 
 1. Dictionary loading
     - `fix::Dictionary` parses one QuickFIX XML file.
@@ -43,16 +45,28 @@ The decoder follows four steps:
       `float`, `double`, `std::string_view`).
     - `decode(...)` returns `fix::DecodedMessage` (ordered field list plus dictionary metadata).
     - `decodeObject(...)` returns `fix::DecodedObject` (map-like object for enum/tag lookup).
+5. Structural semantic validation
+    - Decoder validates message/component/group requirements from dictionaries.
+    - Output includes:
+      - `structurally_valid` (`true`/`false`)
+      - `validation_errors` (human-readable semantic errors, for example missing required fields or group-count mismatches)
 
 ## Repository Layout
 
 - `include/` public headers (`fix_decoder.h`, `fix_dictionary.h`, `fix_msgtype_key.h`)
 - `src/` library sources and example executable (`examples.cc`)
 - `scripts/` helper scripts to fetch dictionaries and sample messages
+- `tools/fix-web-ui/` Dockerized Flask web app + parser utility
 - `data/quickfix/` dictionary XML files
 - `data/samples/valid/` valid sample messages per FIX version
 - `test/unit/` GoogleTest suite and unit test sample messages
 - `test/integration/` dockerized integration/performance harness
+
+## Subdirectory READMEs
+
+- [`tools/fix-web-ui/README.md`](tools/fix-web-ui/README.md) - Dockerized FIX web parser UI
+- [`test/integration/README.md`](test/integration/README.md) - Integration and profiling container workflows
+- [`MessageToObject/README.md`](MessageToObject/README.md) - Message-to-object generator map library details
 
 ## Build and Installation
 
@@ -127,12 +141,17 @@ Fetch reference symbols/participants and generate realistic grouped FIX samples:
 
 ```bash
 ./scripts/generate_realistic_fix_samples.py
+# or override category sizes:
+# ./scripts/generate_realistic_fix_samples.py --num_correct 850 --num_semantic_incorrect 100 --num_garbled 50
 ```
 
 This writes:
 
 - `data/samples/reference/realistic_reference_data.json`
-- `data/samples/realistic/FIX44_realistic_variety.messages`
+- `data/samples/realistic/<VERSION>_realistic_correct_850.messages`
+- `data/samples/realistic/<VERSION>_realistic_semantic_incorrect_100.messages`
+- `data/samples/realistic/<VERSION>_realistic_garbled_50.messages`
+- `data/samples/realistic/<VERSION>_realistic_1000.messages` (combined compatibility file)
 
 ## Usage
 
@@ -241,6 +260,34 @@ Additional controller-demo environment variables:
 - `FIX_HOSTS` (comma-separated exchange hosts for client role)
 - `FIX_PORTS` (comma-separated ports for `FIX_HOSTS`, or a single port reused for all)
 
+### Web parser UI (`tools/fix-web-ui`)
+
+Build and run:
+
+```bash
+docker build -t fix-web-ui -f tools/fix-web-ui/Dockerfile .
+docker run --rm -p 8081:8081 fix-web-ui
+```
+
+Open:
+
+- `http://localhost:8081`
+
+Port is configurable via `PORT`:
+
+```bash
+docker run --rm -e PORT=8090 -p 8090:8090 fix-web-ui
+```
+
+Dictionary directory inside container is configurable via `FIX_DICT_DIR` (default `/app/data/quickfix`).
+
+Web UI behavior:
+
+- accepts `|` or SOH-delimited FIX messages
+- displays parsed fields with dictionary names/types and typed values
+- shows semantic validation status (`Structure Valid`) and validation errors
+- for malformed messages, displays fields parsed up to first malformed token and explains the error
+
 ## Testing
 
 Run all tests:
@@ -254,6 +301,10 @@ The test suite includes:
 - dictionary and decoder unit tests
 - data-driven tests over all supported FIX versions
 - invalid-message mutation tests derived from valid sample messages
+- generated realistic sample tests for:
+  - correct messages (`*_realistic_correct_850.messages`)
+  - semantically incorrect messages (`*_realistic_semantic_incorrect_100.messages`)
+  - garbled messages (`*_realistic_garbled_50.messages`)
 - controller unit tests for logon handshake, out-of-sync sequence detection, and garbled-message rejection
 
 Unit-test message fixtures are located in:
@@ -320,6 +371,6 @@ Conversation sample data:
 ## Notes and Current Scope
 
 - Generated FIX tag enums are `std::uint32_t`, and dictionary/decoder tag storage uses compatible unsigned tag types.
-- The decoder focuses on parsing, version-aware typed decoding, and dictionary-based field metadata resolution.
-- It is not a full FIX protocol validator (ordering, required fields, checksum/body-length enforcement, session state).
+- The decoder supports dictionary-driven structural semantic checks (required members/components and group-count consistency).
+- It is not a full FIX protocol validator (wire ordering constraints, checksum/body-length enforcement, or session state).
 - QuickFIX-style XML dictionaries are expected as dictionary input.

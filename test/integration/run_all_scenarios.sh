@@ -351,7 +351,7 @@ for version in "${FIX_VERSIONS[@]}"; do
     run_case "single-client: conversation [${version}]" "single-client" "fix-client-1" \
         FIX_SCENARIO=conversation \
         FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-40}" \
-        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
         FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
         FIX_EXCHANGE_1_BEGIN_STRING="${version}" \
         FIX_CLIENT_1_BEGIN_STRING="${version}"
@@ -360,7 +360,7 @@ for version in "${FIX_VERSIONS[@]}"; do
         FIX_SCENARIO=performance \
         FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-40}" \
         FIX_PERF_PAYLOAD_SIZE="${FIX_PERF_PAYLOAD_SIZE:-512}" \
-        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
         FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
         FIX_EXCHANGE_1_BEGIN_STRING="${version}" \
         FIX_CLIENT_1_BEGIN_STRING="${version}"
@@ -371,7 +371,7 @@ for version in "${FIX_VERSIONS[@]}"; do
     run_case "multi-exchange: conversation [${version}]" "multi-exchange" "fix-client-multi" \
         FIX_SCENARIO=conversation \
         FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-30}" \
-        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
         FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
         FIX_EXCHANGE_1_BEGIN_STRING="${version}" \
         FIX_EXCHANGE_2_BEGIN_STRING="${version}" \
@@ -380,7 +380,7 @@ for version in "${FIX_VERSIONS[@]}"; do
     run_case "multi-client: conversation [${version}]" "multi-client" "fix-client-2" \
         FIX_SCENARIO=conversation \
         FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-30}" \
-        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
         FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
         FIX_EXCHANGE_1_BEGIN_STRING="${version}" \
         FIX_EXCHANGE_2_BEGIN_STRING="${version}" \
@@ -389,7 +389,7 @@ for version in "${FIX_VERSIONS[@]}"; do
     run_case "multi-mesh: conversation [${version}]" "multi-mesh" "fix-client-mesh-1" \
         FIX_SCENARIO=conversation \
         FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-30}" \
-        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+        FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
         FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
         FIX_EXCHANGE_1_BEGIN_STRING="${version}" \
         FIX_EXCHANGE_2_BEGIN_STRING="${version}" \
@@ -401,7 +401,7 @@ echo "Running selected mixed-version multi-party scenarios"
 run_case "multi-exchange: mixed protocol selection A" "multi-exchange" "fix-client-multi" \
     FIX_SCENARIO=conversation \
     FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-30}" \
-    FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+    FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
     FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
     FIX_EXCHANGE_1_BEGIN_STRING="FIX.4.2" \
     FIX_EXCHANGE_2_BEGIN_STRING="FIXT.1.1" \
@@ -410,7 +410,7 @@ run_case "multi-exchange: mixed protocol selection A" "multi-exchange" "fix-clie
 run_case "multi-client: mixed protocol selection B" "multi-client" "fix-client-2" \
     FIX_SCENARIO=conversation \
     FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-30}" \
-    FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+    FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
     FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
     FIX_EXCHANGE_1_BEGIN_STRING="FIX.4.0" \
     FIX_EXCHANGE_2_BEGIN_STRING="FIX.4.4" \
@@ -420,7 +420,7 @@ run_case "multi-mesh: mixed protocol selection C" "multi-mesh" "fix-client-mesh-
     FIX_SCENARIO=performance \
     FIX_CONVERSATION_MESSAGES="${FIX_CONVERSATION_MESSAGES:-30}" \
     FIX_PERF_PAYLOAD_SIZE="${FIX_PERF_PAYLOAD_SIZE:-512}" \
-    FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-30}" \
+    FIX_RUNTIME_SECONDS="${FIX_RUNTIME_SECONDS:-15}" \
     FIX_REALISTIC_MESSAGES_DIR="${REALISTIC_MESSAGES_DIR}" \
     FIX_EXCHANGE_1_BEGIN_STRING="FIX.4.3" \
     FIX_EXCHANGE_2_BEGIN_STRING="FIXT.1.1" \

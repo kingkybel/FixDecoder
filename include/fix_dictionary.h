@@ -125,11 +125,23 @@ class Dictionary
      */
     const FieldDef *fieldByNumber(std::uint32_t number) const;
     /**
+     * @brief Finds a field definition by dictionary field name.
+     * @param name Field name as defined in dictionary XML.
+     * @return Pointer to field definition, or `nullptr` if not found.
+     */
+    const FieldDef *fieldByName(const std::string &name) const;
+    /**
      * @brief Finds a message definition by message type code.
      * @param msg_type FIX MsgType value (tag 35).
      * @return Pointer to message definition, or `nullptr` if not found.
      */
     const MessageDef *messageByType(const std::string &msg_type) const;
+    /**
+     * @brief Finds a component definition by component name.
+     * @param name Component name as defined in dictionary XML.
+     * @return Pointer to component members, or `nullptr` if not found.
+     */
+    const std::vector<Member> *componentByName(const std::string &name) const;
 
     /**
      * @brief Returns the dictionary begin string (for example `FIX.4.4`).
@@ -163,6 +175,7 @@ class Dictionary
     int         servicepack_ = 0;
 
     std::unordered_map<std::uint32_t, FieldDef>          fields_;
+    std::unordered_map<std::string, std::uint32_t>       field_name_index_;
     std::unordered_map<std::string, MessageDef>          messages_;
     std::unordered_map<std::string, std::vector<Member>> components_;
 

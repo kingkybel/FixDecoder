@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <fcntl.h>
 #include <iostream>
@@ -219,12 +220,77 @@ std::vector<std::string> loadPayloadSeeds(const std::string &begin_string,
         const std::string token = normalizeVersionToken(begin_string);
         if(!token.empty())
         {
-            resolved_file = trimCopy(message_dir);
-            if(!resolved_file.empty() && resolved_file.back() != '/')
+            const std::filesystem::path dir_path(trimCopy(message_dir));
+            int                   best_count = -1;
+            std::filesystem::path best_path;
+            const std::string     suffix = ".messages";
+
+            auto choose_best = [&](const std::string &prefix, const bool allow_underscore_middle) -> bool
             {
-                resolved_file.push_back('/');
+                std::error_code ec_local;
+                if(!std::filesystem::exists(dir_path, ec_local))
+                {
+                    return false;
+                }
+
+                for(const auto &entry: std::filesystem::directory_iterator(dir_path, ec_local))
+                {
+                    if(!entry.is_regular_file())
+                    {
+                        continue;
+                    }
+
+                    const std::string name = entry.path().filename().string();
+                    if(name.rfind(prefix, 0) != 0 || name.size() <= prefix.size() + suffix.size())
+                    {
+                        continue;
+                    }
+                    if(name.substr(name.size() - suffix.size()) != suffix)
+                    {
+                        continue;
+                    }
+
+                    const std::string middle = name.substr(prefix.size(), name.size() - prefix.size() - suffix.size());
+                    if(!allow_underscore_middle && middle.find('_') != std::string::npos)
+                    {
+                        continue;
+                    }
+                    if(allow_underscore_middle && middle.find('_') != std::string::npos)
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        const int count = std::stoi(middle);
+                        if(count > best_count)
+                        {
+                            best_count = count;
+                            best_path  = entry.path();
+                        }
+                    }
+                    catch(const std::exception &)
+                    {
+                    }
+                }
+
+                return best_count > 0;
+            };
+
+            // Prefer semantically valid seed sets first.
+            if(choose_best(token + "_realistic_correct_", false))
+            {
+                resolved_file = best_path.string();
             }
-            resolved_file += token + "_realistic_200.messages";
+            // Otherwise use combined set for backward compatibility.
+            else if(choose_best(token + "_realistic_", false))
+            {
+                resolved_file = best_path.string();
+            }
+            else
+            {
+                resolved_file = (dir_path / (token + "_realistic_1000.messages")).string();
+            }
         }
     }
     if(resolved_file.empty())

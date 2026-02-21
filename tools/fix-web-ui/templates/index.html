@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FIX Parser</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>FIX Message Parser</h1>
+    <p>Paste a FIX message using <code>|</code> or SOH separators.</p>
+
+    <form method="post" action="/parse">
+      <textarea name="message" rows="8" spellcheck="false">{{ message }}</textarea>
+      <div class="actions">
+        <button type="submit">Parse</button>
+      </div>
+    </form>
+
+    {% if result %}
+    <section class="result">
+      <h2>Result</h2>
+      <div class="meta">
+        <div><strong>BeginString:</strong> {{ result.begin_string or "<missing>" }}</div>
+        <div><strong>MsgType:</strong> {{ result.msg_type or "<missing>" }}</div>
+        <div><strong>Structure Valid:</strong> {{ "yes" if result.structurally_valid else "no" }}</div>
+      </div>
+
+      {% if result.parse_error %}
+      <div class="error">
+        <strong>Error:</strong> {{ result.parse_error }}
+      </div>
+      {% endif %}
+
+      {% if result.validation_errors %}
+      <div class="error">
+        <strong>Validation errors:</strong>
+        <ul>
+          {% for err in result.validation_errors %}
+          <li>{{ err }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <h3>Parsed Fields (until first error if malformed)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tag</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Value</th>
+            <th>Typed</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in result.fields %}
+          <tr>
+            <td>{{ f.index }}</td>
+            <td>{{ f.tag }}</td>
+            <td>{{ f.name }}</td>
+            <td>{{ f.type }}</td>
+            <td><code>{{ f.value }}</code></td>
+            <td><code>{{ f.typed }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>
