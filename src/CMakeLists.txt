@@ -32,6 +32,9 @@ add_library(fixdecoder
         fix_socket_connection.cc
 )
 
+# FIX decoder maps are generated under data/generated_src and are required by fix_decoder.cc.
+add_dependencies(fixdecoder generate_fix_decoder_maps)
+
 target_include_directories(fixdecoder
         PUBLIC
         ${CMAKE_SOURCE_DIR}/include
