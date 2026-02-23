@@ -130,6 +130,7 @@ add_custom_target(download_realistic_fix_samples ALL
         COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_realistic_fix_samples.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMENT "Downloading market reference data and generating realistic FIX sample messages"
+        DEPENDS download_fix_samples
         VERBATIM
 )
 
