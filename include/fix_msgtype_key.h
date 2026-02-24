@@ -47,7 +47,7 @@ namespace fix
  * @tparam DelimiterB Second field delimiter.
  * @tparam Width Number of bytes used to build the hash (must be `<= sizeof(size_t)`).
  */
-template<int Tag, char DelimiterA = '|', char DelimiterB = '\x01', std::size_t Width = sizeof(std::size_t)>
+template<int Tag, char DelimiterA = '|', char DelimiterB = 1, std::size_t Width = sizeof(std::size_t)>
 struct basic_fix_msg_key
 {
     static_assert(Tag > 0, "Tag must be greater than zero");
@@ -102,7 +102,7 @@ struct basic_fix_msg_key
         {
             return std::string_view{};
         }
-        const std::size_t tag_len = static_cast<std::size_t>(end_ptr - tag_buffer);
+        const auto tag_len = static_cast<std::size_t>(end_ptr - tag_buffer);
 
         for(std::size_t i = 0; i < message.size();)
         {
@@ -111,13 +111,13 @@ struct basic_fix_msg_key
             {
                 ++i;
             }
-            const std::size_t token_end = i;
+            const auto token_end = i;
             if(i < message.size())
             {
                 ++i;
             }
 
-            const std::size_t token_len = token_end - token_start;
+            const auto token_len = token_end - token_start;
             if(token_len <= tag_len)
             {
                 continue;
@@ -131,7 +131,7 @@ struct basic_fix_msg_key
                 continue;
             }
 
-            const std::size_t value_start = token_start + tag_len + 1;
+            const auto value_start = token_start + tag_len + 1;
             return message.substr(value_start, token_end - value_start);
         }
 
@@ -142,7 +142,7 @@ struct basic_fix_msg_key
 /**
  * @brief Default key extractor for FIX MsgType (tag 35) using `|` and SOH (`0x01`) delimiters.
  */
-using fix_msg_key = basic_fix_msg_key<35, '|', '\x01'>;
+using fix_msg_key = basic_fix_msg_key<35, '|', 1>;
 
 }  // namespace fix
 
