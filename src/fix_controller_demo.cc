@@ -164,7 +164,7 @@ std::string extractPayloadSeed(const std::string &line)
     std::string normalized = line;
     for(char &ch: normalized)
     {
-        if(ch == 0x01)
+        if(ch == '\x01')
         {
             ch = '|';
         }
@@ -655,7 +655,7 @@ void printSafeFix(const std::string &message)
     std::string pretty = message;
     for(char &ch: pretty)
     {
-        if(ch == 0x01)
+        if(ch == '\x01')
         {
             ch = '|';
         }

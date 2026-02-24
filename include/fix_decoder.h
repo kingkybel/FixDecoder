@@ -105,8 +105,7 @@ namespace fix {
         template<typename EnumTag>
         DecodedObjectLookup operator[](EnumTag tag) const
             requires(std::is_enum_v<EnumTag>) {
-            using Underlying = std::underlying_type_t<EnumTag>;
-            return (*this)[static_cast<std::uint32_t>(static_cast<Underlying>(tag))];
+            return (*this)[static_cast<std::uint32_t>(std::to_underlying(tag))];
         }
 
         /**
@@ -172,8 +171,29 @@ namespace fix {
         template<typename EnumTag>
         DecodedObjectLookup operator[](EnumTag tag) const
             requires(std::is_enum_v<EnumTag>) {
-            using Underlying = std::underlying_type_t<EnumTag>;
-            return (*this)[static_cast<std::uint32_t>(static_cast<Underlying>(tag))];
+            return (*this)[static_cast<std::uint32_t>(std::to_underlying(tag))];
+        }
+    };
+
+    /**
+     * @brief Transparent hasher for string-like keys in unordered maps.
+     *
+     * Enables heterogeneous lookup using `std::string_view` to avoid temporary
+     * `std::string` allocations when searching by `const char*` or string literals.
+     */
+    struct StringHash {
+        using is_transparent = void;
+
+        [[nodiscard]] std::size_t operator()(const char *txt) const {
+            return std::hash<std::string_view>{}(txt);
+        }
+
+        [[nodiscard]] std::size_t operator()(std::string_view txt) const {
+            return std::hash<std::string_view>{}(txt);
+        }
+
+        [[nodiscard]] std::size_t operator()(const std::string &txt) const {
+            return std::hash<std::string>{}(txt);
         }
     };
 
@@ -227,7 +247,7 @@ namespace fix {
         };
 
         DictionarySet dictionaries_;
-        std::unordered_map<std::string, ValueDecoder> value_decoders_;
+        std::unordered_map<std::string, ValueDecoder, StringHash, std::equal_to<>> value_decoders_;
         std::unordered_map<std::uint8_t, ValueDecoder> decoder_tag_decoders_;
 
         static std::string normalizeMessage(const std::string &raw);

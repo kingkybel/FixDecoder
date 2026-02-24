@@ -107,7 +107,7 @@ namespace
 
     std::string extractTagValue(const std::string_view message, const int wanted_tag)
     {
-        static constexpr char soh   = 0x01;
+        static constexpr char soh   = '\x01';
         std::size_t           start = 0;
         while(start < message.size())
         {
@@ -578,7 +578,7 @@ void Decoder::registerTypeDecoder(std::string type_name, ValueDecoder decoder)
 
 std::string Decoder::normalizeMessage(const std::string &raw)
 {
-    static constexpr char soh  = 0x01;
+    static constexpr char soh  = '\x01';
     static constexpr char pipe = 0x7c;
 
     if(raw.find(soh) == std::string::npos && raw.find(pipe) != std::string::npos)
@@ -592,7 +592,7 @@ std::string Decoder::normalizeMessage(const std::string &raw)
 
 std::vector<Decoder::ParsedField> Decoder::splitTags(const std::string_view message)
 {
-    static constexpr char soh = 0x01;
+    static constexpr char soh = '\x01';
 
     std::vector<ParsedField> result;
 

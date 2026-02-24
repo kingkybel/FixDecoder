@@ -39,7 +39,7 @@ namespace fix
 namespace
 {
 
-    constexpr char kSoh = 0x01;
+    constexpr char kSoh = '\x01';
 
     std::string toChecksum(const std::string &message_without_checksum)
     {
