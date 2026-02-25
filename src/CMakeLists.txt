@@ -23,6 +23,36 @@
 # @author: Dieter J Kybelksties
 #
 
+add_custom_target(update_fix_dicts ALL
+        COMMAND "${CMAKE_SOURCE_DIR}/scripts/fetch_quickfix_dicts.sh" "${CMAKE_SOURCE_DIR}/data/quickfix"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Downloading QuickFIX XML dictionaries"
+        VERBATIM
+)
+
+add_custom_target(generate_fix_decoder_maps ALL
+        COMMAND "${CMAKE_SOURCE_DIR}/scripts/generate_fix_decoder_maps.sh" "${CMAKE_SOURCE_DIR}/data/quickfix" "${CMAKE_SOURCE_DIR}/data/generated_src"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Generating FIX decoder map headers from dictionaries"
+        DEPENDS update_fix_dicts
+        VERBATIM
+)
+
+add_custom_target(download_fix_samples ALL
+        COMMAND "${CMAKE_SOURCE_DIR}/scripts/fetch_sample_fix_messages.sh" "${CMAKE_SOURCE_DIR}/data/quickfix"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Downloading QuickFIX sample messages"
+        DEPENDS update_fix_dicts
+        VERBATIM
+)
+
+add_custom_target(download_realistic_fix_samples ALL
+        COMMAND bash "${CMAKE_SOURCE_DIR}/scripts/generate_realistic_fix_samples_nonfatal.sh"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Downloading market reference data and generating realistic FIX sample messages"
+        DEPENDS download_fix_samples
+        VERBATIM
+)
 
 
 add_library(fixdecoder

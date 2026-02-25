@@ -22,11 +22,14 @@ import io
 import json
 import random
 import re
+import sys
+import time as time_module
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
+from urllib.error import URLError
 
 UA = "FixDecoderSampleBot/1.0 (contact: github@kybelksties.com)"
 
@@ -47,10 +50,57 @@ class DictionaryModel:
     components: dict[str, list[Member]]
 
 
-def fetch_text(url: str) -> str:
+def warn(msg: str) -> None:
+    print(f"[warn] {msg}", file=sys.stderr)
+
+
+def default_reference_data() -> dict:
+    return {
+        "equities": [
+            {"symbol": "AAPL", "name": "APPLE INC"},
+            {"symbol": "MSFT", "name": "MICROSOFT CORP"},
+            {"symbol": "GOOGL", "name": "ALPHABET INC"},
+            {"symbol": "AMZN", "name": "AMAZON COM INC"},
+            {"symbol": "NVDA", "name": "NVIDIA CORP"},
+            {"symbol": "IBM", "name": "INTERNATIONAL BUSINESS MACHINES"},
+        ],
+        "participants": {
+            "banks": ["JPMORGAN CHASE BANK", "BANK OF AMERICA", "WELLS FARGO BANK", "CITIBANK"],
+            "funds": ["ALPHA CAPITAL MGMT", "RIVERSTONE ASSET MGMT", "SUMMIT ADVISORS"],
+            "companies": ["ACME INDUSTRIES", "GLOBEX CORP", "INITECH LTD"],
+        },
+        "fx_pairs": ["EUR/USD", "EUR/JPY", "EUR/GBP", "USD/JPY", "GBP/USD", "USD/CHF", "AUD/USD"],
+        "bonds": [
+            {"cusip": "91282CFX4", "class": "Treasury Note", "maturity": "20270331", "coupon": "4.000"},
+            {"cusip": "91282CKA8", "class": "Treasury Bond", "maturity": "20530215", "coupon": "3.625"},
+        ],
+        "repo": ["SOFR", "BGCR", "TGCR", "EFFR"],
+        "futures": ["ES:CME E-MINI S&P 500", "NQ:CME E-MINI NASDAQ 100", "ZN:CME 10-YR T-NOTE"],
+        "sources": {
+            "nasdaq_listed": "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
+            "nasdaq_other": "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
+            "ecb_fx": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.csv",
+            "us_treasury": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_5",
+            "nyfed_rates": "https://markets.newyorkfed.org/api/rates/all/latest.json",
+            "cftc_fin_fut": "https://www.cftc.gov/dea/newcot/FinFutWk.txt",
+        },
+    }
+
+
+def fetch_text(url: str, timeout: int = 40, retries: int = 3) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json,text/plain,*/*"})
-    with urllib.request.urlopen(req, timeout=40) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        except (TimeoutError, URLError, OSError) as exc:
+            last_error = exc
+            if attempt < retries:
+                sleep_s = 1.5 * attempt
+                warn(f"Fetch attempt {attempt}/{retries} failed for {url}: {exc}; retrying in {sleep_s:.1f}s")
+                time_module.sleep(sleep_s)
+    raise RuntimeError(f"Failed to fetch {url} after {retries} attempts: {last_error}")
 
 
 def parse_fix_line(line: str) -> list[tuple[str, str]]:
@@ -115,114 +165,131 @@ def choose_unique(items: list[str], count: int) -> list[str]:
 
 
 def load_reference_data() -> dict:
+    ref = default_reference_data()
     all_rows: list[dict[str, str]] = []
     for url in (
         "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
         "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
     ):
-        text = fetch_text(url)
-        reader = csv.DictReader(io.StringIO(text), delimiter="|")
-        for row in reader:
-            symbol = (row.get("Symbol") or row.get("ACT Symbol") or "").strip()
-            name = (row.get("Security Name") or "").strip()
-            etf = (row.get("ETF") or "N").strip()
-            if not symbol or etf == "Y" or "File Creation Time" in symbol:
-                continue
-            all_rows.append({"symbol": symbol, "name": name})
+        try:
+            text = fetch_text(url)
+            reader = csv.DictReader(io.StringIO(text), delimiter="|")
+            for row in reader:
+                symbol = (row.get("Symbol") or row.get("ACT Symbol") or "").strip()
+                name = (row.get("Security Name") or "").strip()
+                etf = (row.get("ETF") or "N").strip()
+                if not symbol or etf == "Y" or "File Creation Time" in symbol:
+                    continue
+                all_rows.append({"symbol": symbol, "name": name})
+        except Exception as exc:
+            warn(f"NASDAQ reference fetch failed ({url}): {exc}")
 
-    equities = []
-    for pair in choose_unique([f"{r['symbol']}|{r['name']}" for r in all_rows], 120):
-        s, n = pair.split("|", 1)
-        equities.append({"symbol": s, "name": n})
+    if all_rows:
+        equities = []
+        for pair in choose_unique([f"{r['symbol']}|{r['name']}" for r in all_rows], 120):
+            s, n = pair.split("|", 1)
+            equities.append({"symbol": s, "name": n})
+        ref["equities"] = equities
 
-    banks = choose_unique(
-        [
-            r["name"]
-            for r in all_rows
-            if re.search(r"\b(BANK|BANCORP|FINANCIAL|TRUST|HOLDINGS)\b", r["name"], re.IGNORECASE)
-        ],
-        40,
-    )
-    funds = choose_unique(
-        [
-            r["name"]
-            for r in all_rows
-            if re.search(r"\b(FUND|CAPITAL|ASSET|ADVIS|MANAGEMENT|PARTNERS)\b", r["name"], re.IGNORECASE)
-        ],
-        40,
-    )
-    companies = choose_unique(
-        [
-            r["name"]
-            for r in all_rows
-            if not re.search(r"\b(FUND|CAPITAL|ASSET|ADVIS|MANAGEMENT|BANK|BANCORP|TRUST)\b", r["name"], re.IGNORECASE)
-        ],
-        40,
-    )
+        banks = choose_unique(
+            [
+                r["name"]
+                for r in all_rows
+                if re.search(r"\b(BANK|BANCORP|FINANCIAL|TRUST|HOLDINGS)\b", r["name"], re.IGNORECASE)
+            ],
+            40,
+        )
+        funds = choose_unique(
+            [
+                r["name"]
+                for r in all_rows
+                if re.search(r"\b(FUND|CAPITAL|ASSET|ADVIS|MANAGEMENT|PARTNERS)\b", r["name"], re.IGNORECASE)
+            ],
+            40,
+        )
+        companies = choose_unique(
+            [
+                r["name"]
+                for r in all_rows
+                if not re.search(r"\b(FUND|CAPITAL|ASSET|ADVIS|MANAGEMENT|BANK|BANCORP|TRUST)\b", r["name"], re.IGNORECASE)
+            ],
+            40,
+        )
+        if banks:
+            ref["participants"]["banks"] = banks
+        if funds:
+            ref["participants"]["funds"] = funds
+        if companies:
+            ref["participants"]["companies"] = companies
 
-    ecb = fetch_text("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.csv")
-    header = ecb.splitlines()[0].split(",")
-    majors = [c for c in ["USD", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD", "CNY", "NOK", "SEK"] if c in header]
-    fx_pairs = [f"EUR/{c}" for c in majors] + ["USD/JPY", "GBP/USD", "USD/CHF", "AUD/USD"]
-    fx_pairs = choose_unique(fx_pairs, 16)
+    try:
+        ecb = fetch_text("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.csv")
+        header = ecb.splitlines()[0].split(",")
+        majors = [c for c in ["USD", "JPY", "GBP", "CHF", "CAD", "AUD", "NZD", "CNY", "NOK", "SEK"] if c in header]
+        fx_pairs = [f"EUR/{c}" for c in majors] + ["USD/JPY", "GBP/USD", "USD/CHF", "AUD/USD"]
+        fx_pairs = choose_unique(fx_pairs, 16)
+        if fx_pairs:
+            ref["fx_pairs"] = fx_pairs
+    except Exception as exc:
+        warn(f"ECB FX reference fetch failed: {exc}")
 
     treas_url = (
         "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_5"
         "?filter=record_date:gte:2025-01-01&sort=-record_date&page%5Bsize%5D=60"
     )
-    treas = json.loads(fetch_text(treas_url))
-    bonds = []
-    for row in treas.get("data", []):
-        cusip = (row.get("cusip") or "").strip()
-        cls = (row.get("security_class1_desc") or "").strip()
-        if not cusip or not cls:
-            continue
-        bonds.append(
-            {
-                "cusip": cusip,
-                "class": cls,
-                "maturity": (row.get("maturity_date") or "").replace("-", ""),
-                "coupon": (row.get("interest_rate_pct") or ""),
-            }
-        )
-    bonds = bonds[:30]
+    try:
+        treas = json.loads(fetch_text(treas_url))
+        bonds = []
+        for row in treas.get("data", []):
+            cusip = (row.get("cusip") or "").strip()
+            cls = (row.get("security_class1_desc") or "").strip()
+            if not cusip or not cls:
+                continue
+            bonds.append(
+                {
+                    "cusip": cusip,
+                    "class": cls,
+                    "maturity": (row.get("maturity_date") or "").replace("-", ""),
+                    "coupon": (row.get("interest_rate_pct") or ""),
+                }
+            )
+        bonds = bonds[:30]
+        if bonds:
+            ref["bonds"] = bonds
+    except Exception as exc:
+        warn(f"US Treasury reference fetch failed: {exc}")
 
-    nyfed = json.loads(fetch_text("https://markets.newyorkfed.org/api/rates/all/latest.json"))
-    repo = []
-    for row in nyfed.get("refRates", []):
-        t = (row.get("type") or "").strip()
-        if t in {"SOFR", "BGCR", "TGCR", "EFFR", "SOFRAI"}:
-            repo.append(t)
-    repo = choose_unique(repo, 8)
+    try:
+        nyfed = json.loads(fetch_text("https://markets.newyorkfed.org/api/rates/all/latest.json"))
+        repo = []
+        for row in nyfed.get("refRates", []):
+            t = (row.get("type") or "").strip()
+            if t in {"SOFR", "BGCR", "TGCR", "EFFR", "SOFRAI"}:
+                repo.append(t)
+        repo = choose_unique(repo, 8)
+        if repo:
+            ref["repo"] = repo
+    except Exception as exc:
+        warn(f"NY Fed rates reference fetch failed: {exc}")
 
-    cftc = fetch_text("https://www.cftc.gov/dea/newcot/FinFutWk.txt")
-    futures = []
-    for row in csv.reader(io.StringIO(cftc)):
-        if not row or row[0].startswith("Market and Exchange Names"):
-            continue
-        market = row[0].strip()
-        code = row[3].strip() if len(row) > 3 else ""
-        if not code or "CHICAGO" not in market.upper():
-            continue
-        futures.append(f"{code}:{market}")
-    futures = choose_unique(futures, 24)
+    try:
+        cftc = fetch_text("https://www.cftc.gov/dea/newcot/FinFutWk.txt")
+        futures = []
+        for row in csv.reader(io.StringIO(cftc)):
+            if not row or row[0].startswith("Market and Exchange Names"):
+                continue
+            market = row[0].strip()
+            code = row[3].strip() if len(row) > 3 else ""
+            if not code or "CHICAGO" not in market.upper():
+                continue
+            futures.append(f"{code}:{market}")
+        futures = choose_unique(futures, 24)
+        if futures:
+            ref["futures"] = futures
+    except Exception as exc:
+        warn(f"CFTC futures reference fetch failed: {exc}")
 
-    return {
-        "equities": equities,
-        "participants": {"banks": banks, "funds": funds, "companies": companies},
-        "fx_pairs": fx_pairs,
-        "bonds": bonds,
-        "repo": repo,
-        "futures": futures,
-        "sources": {
-            "nasdaq_listed": "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt",
-            "nasdaq_other": "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
-            "ecb_fx": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.csv",
-            "us_treasury": "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_5",
-            "nyfed_rates": "https://markets.newyorkfed.org/api/rates/all/latest.json",
-            "cftc_fin_fut": "https://www.cftc.gov/dea/newcot/FinFutWk.txt",
-        },
-    }
+    return ref
 
 
 def parse_members(parent: ET.Element) -> list[Member]:
@@ -724,10 +791,19 @@ def main() -> int:
     if not base:
         raise SystemExit(f"No FIX*.messages files found in {base_dir}")
 
-    ref = load_reference_data()
-    ref["generated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
     ref_path = reference_dir / "realistic_reference_data.json"
+    try:
+        ref = load_reference_data()
+    except Exception as exc:
+        warn(f"Live reference data generation failed: {exc}")
+        if ref_path.exists():
+            warn(f"Using cached reference data from {ref_path}")
+            ref = json.loads(ref_path.read_text(encoding="utf-8"))
+        else:
+            warn("Using built-in fallback reference data")
+            ref = default_reference_data()
+
+    ref["generated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     ref_path.write_text(json.dumps(ref, indent=2), encoding="utf-8")
 
     generated = []

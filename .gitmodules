@@ -1,3 +1,6 @@
 [submodule "MessageToObject"]
 	path = MessageToObject
 	url = git@github.com:kingkybel/MessageToObject.git
+[submodule "cmake-common"]
+	path = cmake-common
+	url = git@github.com:kingkybel/CMakeCommon.git
