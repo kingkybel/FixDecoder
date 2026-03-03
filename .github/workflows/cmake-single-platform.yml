@@ -54,30 +54,6 @@ jobs:
           sudo cp -R ~/gtest/* /usr
         fi
 
-    - name: Install DebugTrace
-      run: |
-        mkdir -p ${{github.workspace}}/MessageToObject/DebugTrace/build
-        cd ${{github.workspace}}/MessageToObject/DebugTrace/build
-        cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-        cmake --build . --parallel $(nproc)
-        sudo cmake --install .
-
-    - name: Install TypeTraits
-      run: |
-        mkdir -p ${{github.workspace}}/MessageToObject/TypeTraits/build
-        cd ${{github.workspace}}/MessageToObject/TypeTraits/build
-        cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-        cmake --build . --parallel $(nproc)
-        sudo cmake --install .
-
-    - name: Install MessageToObject
-      run: |
-        mkdir -p ${{github.workspace}}/MessageToObject/build
-        cd ${{github.workspace}}/MessageToObject/build
-        cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-        cmake --build . --parallel $(nproc)
-        sudo cmake --install .
-
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -134,29 +110,6 @@ jobs:
           sudo cp -R ~/gtest/* /usr
         fi
 
-    - name: Install DebugTrace
-      run: |
-        mkdir -p ${{github.workspace}}/MessageToObject/DebugTrace/build
-        cd ${{github.workspace}}/MessageToObject/DebugTrace/build
-        cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-        cmake --build . --parallel $(nproc)
-        sudo cmake --install .
-
-    - name: Install TypeTraits
-      run: |
-        mkdir -p ${{github.workspace}}/MessageToObject/TypeTraits/build
-        cd ${{github.workspace}}/MessageToObject/TypeTraits/build
-        cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-        cmake --build . --parallel $(nproc)
-        sudo cmake --install .
-
-    - name: Install MessageToObject
-      run: |
-        mkdir -p ${{github.workspace}}/MessageToObject/build
-        cd ${{github.workspace}}/MessageToObject/build
-        cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-        cmake --build . --parallel $(nproc)
-        sudo cmake --install .
     - name: Install lcov
       run: |
         sudo apt-get update
@@ -277,30 +230,6 @@ jobs:
             sudo cp lib/*.a /usr/lib
             sudo cp -R ~/gtest/* /usr
           fi
-
-      - name: Install DebugTrace
-        run: |
-          mkdir -p ${{github.workspace}}/MessageToObject/DebugTrace/build
-          cd ${{github.workspace}}/MessageToObject/DebugTrace/build
-          cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-          cmake --build . --parallel $(nproc)
-          sudo cmake --install .
-
-      - name: Install TypeTraits
-        run: |
-          mkdir -p ${{github.workspace}}/MessageToObject/TypeTraits/build
-          cd ${{github.workspace}}/MessageToObject/TypeTraits/build
-          cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-          cmake --build . --parallel $(nproc)
-          sudo cmake --install .
-
-      - name: Install MessageToObject
-        run: |
-          mkdir -p ${{github.workspace}}/MessageToObject/build
-          cd ${{github.workspace}}/MessageToObject/build
-          cmake -Wno-dev -DCMAKE_INSTALL_PREFIX=/usr -S ..
-          cmake --build . --parallel $(nproc)
-          sudo cmake --install .
 
       - name: Install Sonar build-wrapper
         run: |
