@@ -1,4 +1,7 @@
+![FixDecoder Banner](assets/banners/fixdecoder_banner.svg)
+
 # FixDecoder
+
 
 A C++ FIX decoding library and CLI tool.
 
@@ -374,3 +377,9 @@ Conversation sample data:
 - The decoder supports dictionary-driven structural semantic checks (required members/components and group-count consistency).
 - It is not a full FIX protocol validator (wire ordering constraints, checksum/body-length enforcement, or session state).
 - QuickFIX-style XML dictionaries are expected as dictionary input.
+
+
+## Powered by
+Reduce the smells, keep on top of code-quality. Sonar Qube is run on every push to the `main` branch on GitHub.
+
+[![SonarQubeCloud](assets/icons/logo-sonarqube-cloud-small.png)](https://sonarcloud.io/project/overview?id=kingkybel_TypeTraits)

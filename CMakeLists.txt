@@ -32,6 +32,7 @@ project(FixDecoder
 cmake_policy(SET CMP0135 NEW)
 
 include(GNUInstallDirs)
+include(CTest)
 
 if (CMAKE_BUILD_TYPE STREQUAL "")
     set(CMAKE_BUILD_TYPE RelWithDebInfo)

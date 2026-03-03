@@ -1,0 +1,37 @@
+<svg width="1600" height="400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FixDecoder banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2A0A1E"/>
+      <stop offset="100%" stop-color="#6A1B4D"/>
+    </linearGradient>
+    <linearGradient id="orb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF74B8"/>
+      <stop offset="100%" stop-color="#FF4FA3"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="400" fill="url(#bg)"/>
+  <circle cx="190" cy="380" r="280" fill="#FF8CC7" fill-opacity="0.08"/>
+  <circle cx="1450" cy="40" r="210" fill="#FFFFFF" fill-opacity="0.05"/>
+
+  <g transform="translate(110, 190)">
+    <text font-family="Segoe UI, Arial, sans-serif" font-size="94" font-weight="700" fill="#FFE3F2">FixDecoder</text>
+    <text y="66" font-family="Segoe UI, Arial, sans-serif" font-size="34" fill="#FFD0EA">High-performance C++ FIX protocol parsing and decoding</text>
+  </g>
+
+  <g transform="translate(1300, 200)">
+    <circle r="160" fill="#3A0F2C" stroke="#FF9FD0" stroke-width="5"/>
+    <circle r="126" fill="none" stroke="#FF5EAC" stroke-width="12"/>
+
+    <rect x="-78" y="-86" width="156" height="172" rx="16" fill="#FFF0FA"/>
+    <rect x="-64" y="-64" width="128" height="108" rx="8" fill="#FFC0E1"/>
+
+    <text x="0" y="-20" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700" fill="#7F1458">FIX</text>
+    <text x="0" y="12" text-anchor="middle" font-family="Consolas, Menlo, monospace" font-size="16" fill="#5A0D40">8=FIX.4.4</text>
+    <text x="0" y="34" text-anchor="middle" font-family="Consolas, Menlo, monospace" font-size="16" fill="#5A0D40">35=D</text>
+    <text x="0" y="56" text-anchor="middle" font-family="Consolas, Menlo, monospace" font-size="16" fill="#5A0D40">55=MSFT</text>
+
+    <circle cx="94" cy="-94" r="28" fill="url(#orb)"/>
+    <path d="M82,-94 L92,-84 L108,-102" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
