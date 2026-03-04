@@ -94,7 +94,7 @@ namespace
         {
             return std::string_view{};
         }
-        return std::string_view(&*begin, static_cast<std::size_t>(end - begin));
+        return std::string_view(begin, static_cast<std::size_t>(end - begin));
     }
 
     using GeneratedDecoderTag = generated::DecoderTag;
@@ -114,9 +114,9 @@ namespace
         {
             const std::size_t end       = message.find(soh, start);
             const std::size_t token_end = (end == std::string_view::npos) ? message.size() : end;
-            const std::size_t eq_pos    = message.find('=', start);
 
-            if(eq_pos != std::string_view::npos && eq_pos < token_end)
+            if(const std::size_t eq_pos = message.find('=', start);
+               eq_pos != std::string_view::npos && eq_pos < token_end)
             {
                 int parsed_tag       = 0;
                 const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, parsed_tag);
@@ -193,7 +193,7 @@ namespace
 
     struct ValidationField
     {
-        std::uint32_t tag        = 0;
+        std::uint32_t tag         = 0;
         std::size_t   value_begin = 0;
         std::size_t   value_end   = 0;
     };
@@ -225,7 +225,7 @@ namespace
     {
         for(const Member &member: members)
         {
-            if(const std::optional<std::uint32_t> tag = firstMemberTag(dict, member))
+            if(const std::optional<std::uint32_t> tag = firstMemberTag(dict, member); tag.has_value())
             {
                 return tag;
             }
@@ -233,21 +233,21 @@ namespace
         return std::nullopt;
     }
 
-    bool parseMembersForValidation(const Dictionary                 &dict,
-                                   const std::vector<Member>       &members,
-                                   const std::string_view           message,
+    bool parseMembersForValidation(const Dictionary                   &dict,
+                                   const std::vector<Member>          &members,
+                                   const std::string_view              message,
                                    const std::vector<ValidationField> &fields,
-                                   std::size_t                     &index,
-                                   ValidationErrors                &errors,
-                                   bool                             enforce_presence);
+                                   std::size_t                        &index,
+                                   ValidationErrors                   &errors,
+                                   bool                                enforce_presence);
 
-    bool parseMemberForValidation(const Dictionary                  &dict,
-                                  const Member                      &member,
-                                  const std::string_view             message,
+    bool parseMemberForValidation(const Dictionary                   &dict,
+                                  const Member                       &member,
+                                  const std::string_view              message,
                                   const std::vector<ValidationField> &fields,
-                                  std::size_t                       &index,
-                                  ValidationErrors                  &errors,
-                                  const bool                         enforce_presence)
+                                  std::size_t                        &index,
+                                  ValidationErrors                   &errors,
+                                  const bool                          enforce_presence)
     {
         if(member.kind == MemberKind::Field)
         {
@@ -282,8 +282,8 @@ namespace
                 return false;
             }
 
-            const std::optional<std::uint32_t> expected_tag = firstMemberTag(dict, *component_members);
-            if(expected_tag && (index >= fields.size() || fields[index].tag != *expected_tag))
+            if(const std::optional<std::uint32_t> expected_tag = firstMemberTag(dict, *component_members);
+               expected_tag && (index >= fields.size() || fields[index].tag != *expected_tag))
             {
                 if(member.required && enforce_presence)
                 {
@@ -321,8 +321,9 @@ namespace
         const ValidationField &count_field = fields[index];
         const std::string_view count_value =
          message.substr(count_field.value_begin, count_field.value_end - count_field.value_begin);
-        int declared_count   = 0;
-        const auto [ptr, ec] = std::from_chars(count_value.data(), count_value.data() + count_value.size(), declared_count);
+        int declared_count = 0;
+        const auto [ptr, ec] =
+         std::from_chars(count_value.data(), count_value.data() + count_value.size(), declared_count);
         if(ec != std::errc{} || ptr != count_value.data() + count_value.size() || declared_count < 0)
         {
             errors.emplace_back("Invalid group-count value for '" + member.name + "'");
@@ -345,20 +346,20 @@ namespace
 
         if(actual_count != static_cast<std::size_t>(declared_count))
         {
-            errors.emplace_back("Group '" + member.name + "' count mismatch: declared "
-                                + std::to_string(declared_count) + ", actual " + std::to_string(actual_count));
+            errors.emplace_back("Group '" + member.name + "' count mismatch: declared " + std::to_string(declared_count)
+                                + ", actual " + std::to_string(actual_count));
         }
 
         return true;
     }
 
-    bool parseMembersForValidation(const Dictionary                 &dict,
-                                   const std::vector<Member>       &members,
-                                   const std::string_view           message,
+    bool parseMembersForValidation(const Dictionary                   &dict,
+                                   const std::vector<Member>          &members,
+                                   const std::string_view              message,
                                    const std::vector<ValidationField> &fields,
-                                   std::size_t                     &index,
-                                   ValidationErrors                &errors,
-                                   const bool                       enforce_presence)
+                                   std::size_t                        &index,
+                                   ValidationErrors                   &errors,
+                                   const bool                          enforce_presence)
     {
         bool consumed_any = false;
         for(const Member &member: members)
@@ -390,9 +391,10 @@ namespace
             return errors;
         }
 
-        std::size_t index = 0;
+        std::size_t index      = 0;
         bool        positioned = false;
-        if(const std::optional<std::uint32_t> start_tag = firstMemberTag(dict, message_def->members))
+        if(const std::optional<std::uint32_t> start_tag = firstMemberTag(dict, message_def->members);
+           start_tag.has_value())
         {
             while(index < fields.size())
             {
@@ -577,10 +579,9 @@ void Decoder::registerTypeDecoder(std::string type_name, ValueDecoder decoder)
 
 std::string Decoder::normalizeMessage(const std::string &raw)
 {
-    static constexpr char soh  = '\x01';
-    static constexpr char pipe = 0x7c;
+    static constexpr char soh = '\x01';
 
-    if(raw.find(soh) == std::string::npos && raw.find(pipe) != std::string::npos)
+    if(static constexpr char pipe = 0x7c; raw.find(soh) == std::string::npos && raw.find(pipe) != std::string::npos)
     {
         std::string normalized = raw;
         std::replace(normalized.begin(), normalized.end(), pipe, soh);
@@ -600,9 +601,8 @@ std::vector<Decoder::ParsedField> Decoder::splitTags(const std::string_view mess
     {
         const std::size_t end       = message.find(soh, start);
         const std::size_t token_end = (end == std::string_view::npos) ? message.size() : end;
-        const std::size_t eq_pos    = message.find('=', start);
 
-        if(eq_pos != std::string_view::npos && eq_pos < token_end)
+        if(const std::size_t eq_pos = message.find('=', start); eq_pos != std::string_view::npos && eq_pos < token_end)
         {
             int tag              = 0;
             const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, tag);
@@ -661,14 +661,13 @@ const Dictionary *Decoder::selectDictionary(const std::string_view          mess
 Decoder::DecodedValue
  Decoder::decodeTypedValue(const std::uint8_t decoder_tag, const ValueIterator begin, const ValueIterator end) const
 {
-    const auto it = decoder_tag_decoders_.find(decoder_tag);
-    if(it != decoder_tag_decoders_.end())
+    if(const auto it = decoder_tag_decoders_.find(decoder_tag); it != decoder_tag_decoders_.end())
     {
         return it->second(begin, end);
     }
 
-    const auto string_it = decoder_tag_decoders_.find(toDecoderTagValue(GeneratedDecoderTag::kString));
-    if(string_it != decoder_tag_decoders_.end())
+    if(const auto string_it = decoder_tag_decoders_.find(toDecoderTagValue(GeneratedDecoderTag::kString));
+       string_it != decoder_tag_decoders_.end())
     {
         return string_it->second(begin, end);
     }
@@ -680,14 +679,13 @@ Decoder::DecodedValue
  Decoder::decodeTypedValue(const std::string &type, const ValueIterator begin, const ValueIterator end) const
 {
     const std::string key = toUpperCopy(type);
-    const auto        it  = value_decoders_.find(key);
-    if(it != value_decoders_.end())
+
+    if(const auto it = value_decoders_.find(key); it != value_decoders_.end())
     {
         return it->second(begin, end);
     }
 
-    const auto string_it = value_decoders_.find("STRING");
-    if(string_it != value_decoders_.end())
+    if(const auto string_it = value_decoders_.find("STRING"); string_it != value_decoders_.end())
     {
         return string_it->second(begin, end);
     }
@@ -753,7 +751,7 @@ DecodedMessage Decoder::decode(const std::string &raw) const
 
     if(dict)
     {
-        decoded.validation_errors = validateStructure(*dict, decoded.msg_type, message, validation_fields);
+        decoded.validation_errors  = validateStructure(*dict, decoded.msg_type, message, validation_fields);
         decoded.structurally_valid = decoded.validation_errors.empty();
     }
 
@@ -815,7 +813,7 @@ DecodedObject Decoder::decodeObject(const std::string &raw) const
 
     if(dict)
     {
-        decoded.validation_errors = validateStructure(*dict, decoded.msg_type, message, validation_fields);
+        decoded.validation_errors  = validateStructure(*dict, decoded.msg_type, message, validation_fields);
         decoded.structurally_valid = decoded.validation_errors.empty();
     }
 
