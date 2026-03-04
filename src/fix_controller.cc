@@ -126,9 +126,9 @@ std::string Controller::buildMessageWithSeqNum(std::string_view          msg_typ
     return message;
 }
 
-std::string Controller::buildMessage(std::string msg_type, const std::vector<Field> &fields)
+std::string Controller::buildMessage(const std::string &msg_type, const std::vector<Field> &fields)
 {
-    return buildMessageWithSeqNum(std::move(msg_type), fields, next_outgoing_seq_num_);
+    return buildMessageWithSeqNum(msg_type, fields, next_outgoing_seq_num_);
     next_outgoing_seq_num_++;
 }
 
@@ -177,9 +177,9 @@ std::string Controller::buildLogout(std::string text)
     return buildMessage("5", fields);
 }
 
-std::string Controller::buildApplicationMessage(std::string msg_type, const std::vector<Field> &fields)
+std::string Controller::buildApplicationMessage(const std::string &msg_type, const std::vector<Field> &fields)
 {
-    return buildMessage(std::move(msg_type), fields);
+    return buildMessage(msg_type, fields);
 }
 
 std::string Controller::buildResendRequest(const std::uint32_t begin_seq_no, const std::uint32_t end_seq_no)

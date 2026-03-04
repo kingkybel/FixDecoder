@@ -113,7 +113,7 @@ class Controller
     /** @brief Builds a logout (`35=5`) and transitions state to logout-sent. */
     std::string buildLogout(std::string text = {});
     /** @brief Builds an arbitrary application message (`35=<msg_type>`). */
-    std::string buildApplicationMessage(std::string msg_type, const std::vector<Field> &fields = {});
+    std::string buildApplicationMessage(const std::string &msg_type, const std::vector<Field> &fields = {});
     /** @brief Builds a resend request (`35=2`) for the requested sequence range. */
     std::string buildResendRequest(std::uint32_t begin_seq_no, std::uint32_t end_seq_no = 0);
 
@@ -183,7 +183,7 @@ class Controller
         std::int32_t   field = 0;
     };
 
-    std::string buildMessage(std::string msg_type, const std::vector<Field> &fields);
+    std::string buildMessage(const std::string &msg_type, const std::vector<Field> &fields);
     std::string
      buildMessageWithSeqNum(std::string_view msg_type, const std::vector<Field> &fields, std::uint32_t seq_num) const;
     static std::string utcTimestamp();

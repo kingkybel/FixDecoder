@@ -70,13 +70,13 @@ int envOrDefaultInt(const char *name, const int fallback)
     {
         return std::stoi(value);
     }
-    catch(...)
+    catch(...)  // NOSONAR S2738: could not read the ENV value so use the fallback
     {
         return fallback;
     }
 }
 
-std::string longToken(const std::string &prefix, const int index, const int payload_size)
+std::string longToken(const std::string &prefix, const size_t index, const size_t payload_size)
 {
     std::string token = prefix + '-' + std::to_string(index) + '-';
     if(payload_size <= 0)
@@ -85,15 +85,15 @@ std::string longToken(const std::string &prefix, const int index, const int payl
     }
 
     static constexpr std::string_view pattern = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    token.reserve(static_cast<std::size_t>(payload_size));
-    for(int i = 0; static_cast<int>(token.size()) < payload_size; ++i)
+    token.reserve(payload_size);
+    for(size_t i = 0; i < payload_size; ++i)
     {
-        token.push_back(pattern[static_cast<std::size_t>(i) % pattern.size()]);
+        token.push_back(pattern[i % pattern.size()]);
     }
     return token;
 }
 
-std::string trimCopy(std::string value)
+std::string trimCopy(std::string_view value)
 {
     const auto is_not_space = [](const unsigned char ch) { return !std::isspace(ch); };
     const auto begin        = std::find_if(value.begin(), value.end(), is_not_space);
@@ -105,7 +105,7 @@ std::string trimCopy(std::string value)
     return std::string(begin, end);
 }
 
-std::vector<std::string> splitCsv(const std::string &input)
+std::vector<std::string> splitCsv(std::string_view input)
 {
     std::vector<std::string> tokens;
     std::size_t              start = 0;
@@ -130,14 +130,15 @@ std::vector<std::string> splitCsv(const std::string &input)
 std::vector<int> splitCsvInts(const std::string &input)
 {
     std::vector<int> values;
-    for(const std::string &token: splitCsv(input))
+    for(const auto &token: splitCsv(input))
     {
         try
         {
             values.push_back(std::stoi(token));
         }
-        catch(...)
+        catch(...)  // NOSONAR S2738: ignore non-ints
         {
+            // ignore non-ints
         }
     }
     return values;
@@ -190,8 +191,8 @@ std::string extractPayloadSeed(const std::string &line)
         start = next + 1;
     }
 
-    static const char *preferred_tags[] = {"112", "58", "11", "55", "48", "22", "167", "1"};
-    for(const char *tag: preferred_tags)
+    static const std::vector<std::string_view> preferred_tags = {"112", "58", "11", "55", "48", "22", "167", "1"};
+    for(const auto &tag: preferred_tags)
     {
         for(const auto &[k, v]: tags)
         {
@@ -225,7 +226,7 @@ std::vector<std::string>
             std::filesystem::path       best_path;
             const std::string           suffix = ".messages";
 
-            auto choose_best = [&](const std::string &prefix, const bool allow_underscore_middle) -> bool
+            auto choose_best = [&](std::string_view prefix, const bool allow_underscore_middle)
             {
                 std::error_code ec_local;
                 if(!std::filesystem::exists(dir_path, ec_local))
@@ -271,6 +272,7 @@ std::vector<std::string>
                     }
                     catch(const std::exception &)
                     {
+                        // ignore non-ints
                     }
                 }
 
@@ -329,7 +331,7 @@ std::vector<std::string>
     return seeds;
 }
 
-std::string buildRequestId(const std::string              &scenario,
+std::string buildRequestId(std::string_view                scenario,
                            const std::vector<std::string> &payload_seeds,
                            const int                       index,
                            const int                       perf_payload_size)
@@ -427,8 +429,10 @@ int runSingleSession(const std::string &role,
     {
         bool exit_loop = false;
         char buffer[2048];
-        const fix::SocketConnection::ReceiveResult received = connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
-        if(received.bytes_read > 0)
+
+        if(const fix::SocketConnection::ReceiveResult received =
+            connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
+           received.bytes_read > 0)
         {
             const auto frames =
              controller.consume(std::string_view(buffer, static_cast<std::size_t>(received.bytes_read)));
@@ -456,7 +460,8 @@ int runSingleSession(const std::string &role,
                 }
             }
         }
-        else if(received.bytes_read == 0 || (received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK))
+        else if(received.bytes_read == 0
+                || (received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK))
         {
             if(received.bytes_read < 0)
             {
@@ -576,8 +581,7 @@ int runExchangeServer(const int port, const std::string &begin_string, const int
         return 2;
     }
 
-    const int flags = ::fcntl(listener.fd(), F_GETFL, 0);
-    if(flags >= 0)
+    if(const int flags = ::fcntl(listener.fd(), F_GETFL, 0); flags >= 0)
     {
         (void)::fcntl(listener.fd(), F_SETFL, flags | O_NONBLOCK);
     }
@@ -600,10 +604,11 @@ int runExchangeServer(const int port, const std::string &begin_string, const int
         while(std::chrono::steady_clock::now() < session_deadline)
         {
             bool exit_session = false;
-            char                                       buffer[2048];
-            const fix::SocketConnection::ReceiveResult received =
-             connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
-            if(received.bytes_read > 0)
+            char buffer[2048];
+
+            if(const fix::SocketConnection::ReceiveResult received =
+                connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
+               received.bytes_read > 0)
             {
                 const auto frames =
                  controller.consume(std::string_view(buffer, static_cast<std::size_t>(received.bytes_read)));
@@ -628,7 +633,9 @@ int runExchangeServer(const int port, const std::string &begin_string, const int
                     }
                 }
             }
-            else if(received.bytes_read == 0 || (received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK))
+            else if(received.bytes_read == 0
+                    || (received.bytes_read < 0 && received.error_number != EAGAIN
+                        && received.error_number != EWOULDBLOCK))
             {
                 if(received.bytes_read < 0)
                 {

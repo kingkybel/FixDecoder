@@ -52,6 +52,10 @@ class TempDir
         path_ = base / name;
         std::filesystem::create_directories(path_);
     }
+    TempDir(const TempDir &)            = delete;
+    TempDir(TempDir &&)                 = delete;
+    TempDir &operator=(const TempDir &) = delete;
+    TempDir &operator=(TempDir &&)      = delete;
 
     ~TempDir()
     {
@@ -124,8 +128,9 @@ bool looksValidDecode(const fix::DecodedMessage &decoded)
 
 bool hasValidationErrorContaining(const fix::DecodedMessage &decoded, const std::string_view needle)
 {
-    return std::any_of(decoded.validation_errors.begin(), decoded.validation_errors.end(),
-                       [needle](const auto &error) { return error.find(needle) != std::string::npos; });
+    return std::any_of(decoded.validation_errors.begin(),
+                       decoded.validation_errors.end(),
+                       [&](const auto &error) { return error.find(needle) != std::string::npos; });
 }
 
 std::string removeTag8(const std::string &message)
@@ -150,9 +155,9 @@ std::string removeTag8(const std::string &message)
 
 std::string breakMsgTypeTag(const std::string &message)
 {
-    std::string       mutated = message;
-    const std::size_t pos     = mutated.find("|35=");
-    if(pos != std::string::npos)
+    std::string mutated = message;
+
+    if(const std::size_t pos = mutated.find("|35="); pos != std::string::npos)
     {
         mutated.replace(pos + 1, 3, "35-");
     }
@@ -161,9 +166,9 @@ std::string breakMsgTypeTag(const std::string &message)
 
 std::string makeBeginTagNonNumeric(const std::string &message)
 {
-    std::string       mutated = message;
-    const std::size_t pos     = mutated.find("8=");
-    if(pos != std::string::npos)
+    std::string mutated = message;
+
+    if(const std::size_t pos = mutated.find("8="); pos != std::string::npos)
     {
         mutated[pos] = 'X';
     }
@@ -184,33 +189,33 @@ const char *const kMinimalFix42 = "<?xml version=\"1.0\"?>\n"
                                   "  </messages>\n"
                                   "</fix>\n";
 
-const char *kFix42WithComponentAndGroup = "<?xml version=\"1.0\"?>\n"
-                                          "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
-                                          "  <fields>\n"
-                                          "    <field number=\"8\" name=\"BeginString\" type=\"STRING\"/>\n"
-                                          "    <field number=\"35\" name=\"MsgType\" type=\"STRING\"/>\n"
-                                          "    <field number=\"55\" name=\"Symbol\" type=\"STRING\"/>\n"
-                                          "    <field number=\"453\" name=\"NoPartyIDs\" type=\"NUMINGROUP\"/>\n"
-                                          "    <field number=\"448\" name=\"PartyID\" type=\"STRING\"/>\n"
-                                          "    <field number=\"447\" name=\"PartyIDSource\" type=\"CHAR\"/>\n"
-                                          "    <field number=\"452\" name=\"PartyRole\" type=\"INT\"/>\n"
-                                          "  </fields>\n"
-                                          "  <components>\n"
-                                          "    <component name=\"Parties\">\n"
-                                          "      <group name=\"NoPartyIDs\" required=\"N\">\n"
-                                          "        <field name=\"PartyID\" required=\"Y\"/>\n"
-                                          "        <field name=\"PartyIDSource\" required=\"Y\"/>\n"
-                                          "        <field name=\"PartyRole\" required=\"Y\"/>\n"
-                                          "      </group>\n"
-                                          "    </component>\n"
-                                          "  </components>\n"
-                                          "  <messages>\n"
-                                          "    <message name=\"NewOrderSingle\" msgtype=\"D\" msgcat=\"app\">\n"
-                                          "      <field name=\"Symbol\" required=\"Y\"/>\n"
-                                          "      <component name=\"Parties\" required=\"Y\"/>\n"
-                                          "    </message>\n"
-                                          "  </messages>\n"
-                                          "</fix>\n";
+const char *const kFix42WithComponentAndGroup = "<?xml version=\"1.0\"?>\n"
+                                                "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
+                                                "  <fields>\n"
+                                                "    <field number=\"8\" name=\"BeginString\" type=\"STRING\"/>\n"
+                                                "    <field number=\"35\" name=\"MsgType\" type=\"STRING\"/>\n"
+                                                "    <field number=\"55\" name=\"Symbol\" type=\"STRING\"/>\n"
+                                                "    <field number=\"453\" name=\"NoPartyIDs\" type=\"NUMINGROUP\"/>\n"
+                                                "    <field number=\"448\" name=\"PartyID\" type=\"STRING\"/>\n"
+                                                "    <field number=\"447\" name=\"PartyIDSource\" type=\"CHAR\"/>\n"
+                                                "    <field number=\"452\" name=\"PartyRole\" type=\"INT\"/>\n"
+                                                "  </fields>\n"
+                                                "  <components>\n"
+                                                "    <component name=\"Parties\">\n"
+                                                "      <group name=\"NoPartyIDs\" required=\"N\">\n"
+                                                "        <field name=\"PartyID\" required=\"Y\"/>\n"
+                                                "        <field name=\"PartyIDSource\" required=\"Y\"/>\n"
+                                                "        <field name=\"PartyRole\" required=\"Y\"/>\n"
+                                                "      </group>\n"
+                                                "    </component>\n"
+                                                "  </components>\n"
+                                                "  <messages>\n"
+                                                "    <message name=\"NewOrderSingle\" msgtype=\"D\" msgcat=\"app\">\n"
+                                                "      <field name=\"Symbol\" required=\"Y\"/>\n"
+                                                "      <component name=\"Parties\" required=\"Y\"/>\n"
+                                                "    </message>\n"
+                                                "  </messages>\n"
+                                                "</fix>\n";
 
 struct SampleSet
 {
@@ -491,7 +496,7 @@ TEST_P(SampleMessagesTest, MutatedSamplesFailDecodeChecks)
 
 TEST_P(RealisticSubsetMessagesTest, RealisticSubsetDecodes)
 {
-    const auto sample = GetParam();
+    const auto &sample = GetParam();
 
     fix::Decoder decoder;
     std::string  error;
