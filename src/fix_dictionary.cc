@@ -99,7 +99,7 @@ bool Dictionary::isRequiredAttr(const char *value)
     return value && (value[0] == upper_y || value[0] == lower_y);
 }
 
-bool Dictionary::loadFromFile(const std::filesystem::path &path, std::string *error)
+bool Dictionary::loadFromFile(const std::filesystem::path &path, std::string &error)
 {
     fields_.clear();
     field_name_index_.clear();
@@ -110,10 +110,7 @@ bool Dictionary::loadFromFile(const std::filesystem::path &path, std::string *er
 
     if(const auto status = doc.LoadFile(path.c_str()); status != tinyxml2::XML_SUCCESS)
     {
-        if(error)
-        {
-            *error = "Failed to load XML: " + path.string();
-        }
+        error = "Failed to load XML: " + path.string();
 
         return false;
     }
@@ -121,10 +118,7 @@ bool Dictionary::loadFromFile(const std::filesystem::path &path, std::string *er
     const tinyxml2::XMLElement *root = doc.FirstChildElement("fix");
     if(!root)
     {
-        if(error)
-        {
-            *error = "Missing <fix> root element in " + path.string();
-        }
+        error = "Missing <fix> root element in " + path.string();
 
         return false;
     }
@@ -273,7 +267,7 @@ bool DictionarySet::loadFromDirectory(const std::filesystem::path &path, std::st
 
         Dictionary dict;
 
-        if(std::string local_error; !dict.loadFromFile(entry.path(), &local_error))
+        if(std::string local_error; !dict.loadFromFile(entry.path(), local_error))
         {
             failures.emplace_back(std::move(local_error));
             continue;

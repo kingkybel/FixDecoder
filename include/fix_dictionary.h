@@ -117,7 +117,7 @@ class Dictionary
      * @param error Optional output parameter for a human-readable error message.
      * @return `true` if loading succeeded, `false` otherwise.
      */
-    bool loadFromFile(const std::filesystem::path &path, std::string *error = nullptr);
+    bool loadFromFile(const std::filesystem::path &path, std::string &error);
 
     /**
      * @brief Finds a field definition by numeric tag.

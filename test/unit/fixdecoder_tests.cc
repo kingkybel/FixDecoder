@@ -253,7 +253,7 @@ TEST(DictionaryTest, LoadsFileAndResolvesFieldAndMessage)
 
     fix::Dictionary dict;
     std::string     error;
-    ASSERT_TRUE(dict.loadFromFile(xml_path.string(), &error)) << error;
+    ASSERT_TRUE(dict.loadFromFile(xml_path.string(), error)) << error;
 
     EXPECT_EQ(dict.beginString(), "FIX.4.2");
 
