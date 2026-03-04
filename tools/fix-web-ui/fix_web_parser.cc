@@ -27,19 +27,19 @@ std::string escapeJson(std::string_view s)
         switch(c)
         {
             case '"':
-                out += "\\\"";
+                out += R"(\")";
                 break;
             case '\\':
-                out += "\\\\";
+                out += R"(\\)";
                 break;
             case '\n':
-                out += "\\n";
+                out += R"(\n)";
                 break;
             case '\r':
-                out += "\\r";
+                out += R"(\r)";
                 break;
             case '\t':
-                out += "\\t";
+                out += R"(\t)";
                 break;
             default:
                 out += c;
@@ -64,8 +64,9 @@ std::string normalize(std::string raw)
 
 bool strictParse(std::string_view message, std::vector<Token> &out, std::string &error)
 {
-    static constexpr char soh = 0x01;
-    auto is_whitespace_only   = [](std::string_view s) {
+    static constexpr char soh                = 0x01;
+    auto                  is_whitespace_only = [](std::string_view s)
+    {
         for(unsigned char c: s)
         {
             if(!std::isspace(c))
@@ -81,45 +82,38 @@ bool strictParse(std::string_view message, std::vector<Token> &out, std::string 
 
     while(start < message.size())
     {
-        const std::size_t end       = message.find(soh, start);
-        const std::size_t token_end = (end == std::string_view::npos) ? message.size() : end;
+        const std::size_t end        = message.find(soh, start);
+        const std::size_t token_end  = (end == std::string_view::npos) ? message.size() : end;
         const auto        token_view = message.substr(start, token_end - start);
-        if(token_view.empty() || is_whitespace_only(token_view))
+        if(!token_view.empty() && !is_whitespace_only(token_view))
         {
-            if(end == std::string_view::npos)
+            ++token_index;
+            const std::size_t eq_pos = message.find('=', start);
+            if(eq_pos == std::string_view::npos || eq_pos >= token_end)
             {
-                break;
+                error = "Token " + std::to_string(token_index) + " is malformed: missing '=' delimiter.";
+                return false;
             }
-            start = end + 1;
-            continue;
-        }
 
-        ++token_index;
-        const std::size_t eq_pos = message.find('=', start);
-        if(eq_pos == std::string_view::npos || eq_pos >= token_end)
-        {
-            error = "Token " + std::to_string(token_index) + " is malformed: missing '=' delimiter.";
-            return false;
-        }
+            if(eq_pos == start)
+            {
+                error = "Token " + std::to_string(token_index) + " has empty tag before '='.";
+                return false;
+            }
 
-        if(eq_pos == start)
-        {
-            error = "Token " + std::to_string(token_index) + " has empty tag before '='.";
-            return false;
-        }
+            int tag              = 0;
+            const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, tag);
+            if(ec != std::errc{} || ptr != message.data() + eq_pos || tag <= 0)
+            {
+                error = "Token " + std::to_string(token_index) + " has non-numeric or non-positive tag.";
+                return false;
+            }
 
-        int tag = 0;
-        const auto [ptr, ec] = std::from_chars(message.data() + start, message.data() + eq_pos, tag);
-        if(ec != std::errc{} || ptr != message.data() + eq_pos || tag <= 0)
-        {
-            error = "Token " + std::to_string(token_index) + " has non-numeric or non-positive tag.";
-            return false;
+            Token t;
+            t.tag = static_cast<std::uint32_t>(tag);
+            t.value.assign(message.substr(eq_pos + 1, token_end - eq_pos - 1));
+            out.push_back(std::move(t));
         }
-
-        Token t;
-        t.tag = static_cast<std::uint32_t>(tag);
-        t.value.assign(message.substr(eq_pos + 1, token_end - eq_pos - 1));
-        out.push_back(std::move(t));
 
         if(end == std::string_view::npos)
         {
@@ -193,7 +187,7 @@ int main(int argc, char **argv)
 
     fix::Decoder decoder;
     std::string  load_error;
-    decoder.loadDictionariesFromDirectory(dict_dir, &load_error);
+    decoder.loadDictionariesFromDirectory(dict_dir, load_error);
 
     const fix::DecodedMessage decoded = decoder.decode(partial_message);
 
@@ -227,24 +221,24 @@ int main(int argc, char **argv)
 
     std::ostringstream json;
     json << "{";
-    json << "\"ok\":" << (ok ? "true" : "false") << ",";
-    json << "\"begin_string\":\"" << escapeJson(decoded.begin_string) << "\",";
-    json << "\"msg_type\":\"" << escapeJson(decoded.msg_type) << "\",";
-    json << "\"parse_error\":\"" << escapeJson(parse_error) << "\",";
-    json << "\"structurally_valid\":" << (decoded.structurally_valid ? "true" : "false") << ",";
+    json << R"("ok":)" << (ok ? "true" : "false") << ",";
+    json << R"("begin_string":")" << escapeJson(decoded.begin_string) << "\",";
+    json << R"("msg_type":")" << escapeJson(decoded.msg_type) << "\",";
+    json << R"("parse_error":")" << escapeJson(parse_error) << "\",";
+    json << R"("structurally_valid":)" << (decoded.structurally_valid ? "true" : "false") << ",";
 
-    json << "\"validation_errors\":[";
+    json << R"("validation_errors":[)";
     for(std::size_t i = 0; i < decoded.validation_errors.size(); ++i)
     {
         if(i > 0)
         {
             json << ",";
         }
-        json << "\"" << escapeJson(decoded.validation_errors[i]) << "\"";
+        json << R"(")" << escapeJson(decoded.validation_errors[i]) << R"(")";
     }
     json << "],";
 
-    json << "\"fields\":[";
+    json << R"("fields":[)";
     for(std::size_t i = 0; i < decoded.fields.size(); ++i)
     {
         const auto &f = decoded.fields[i];
@@ -253,12 +247,12 @@ int main(int argc, char **argv)
             json << ",";
         }
         json << "{";
-        json << "\"index\":" << (i + 1) << ",";
-        json << "\"tag\":" << f.tag << ",";
-        json << "\"name\":\"" << escapeJson(f.name) << "\",";
-        json << "\"type\":\"" << escapeJson(f.type) << "\",";
-        json << "\"value\":\"" << escapeJson(f.value) << "\",";
-        json << "\"typed\":\"" << escapeJson(typedValueToString(f)) << "\"";
+        json << R"("index":)" << (i + 1) << ",";
+        json << R"("tag":)" << f.tag << ",";
+        json << R"("name":")" << escapeJson(f.name) << "\",";
+        json << R"("type":")" << escapeJson(f.type) << "\",";
+        json << R"("value":")" << escapeJson(f.value) << "\",";
+        json << R"("typed":")" << escapeJson(typedValueToString(f)) << "\"";
         json << "}";
     }
     json << "]";

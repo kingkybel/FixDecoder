@@ -27,6 +27,7 @@
 #include "fix_decoder.h"
 #include "fix_dictionary.h"
 
+#include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <filesystem>
@@ -123,14 +124,8 @@ bool looksValidDecode(const fix::DecodedMessage &decoded)
 
 bool hasValidationErrorContaining(const fix::DecodedMessage &decoded, const std::string_view needle)
 {
-    for(const auto &error: decoded.validation_errors)
-    {
-        if(error.find(needle) != std::string::npos)
-        {
-            return true;
-        }
-    }
-    return false;
+    return std::any_of(decoded.validation_errors.begin(), decoded.validation_errors.end(),
+                       [needle](const auto &error) { return error.find(needle) != std::string::npos; });
 }
 
 std::string removeTag8(const std::string &message)
@@ -175,19 +170,19 @@ std::string makeBeginTagNonNumeric(const std::string &message)
     return mutated;
 }
 
-const char *kMinimalFix42 = "<?xml version=\"1.0\"?>\n"
-                            "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
-                            "  <fields>\n"
-                            "    <field number=\"8\" name=\"BeginString\" type=\"STRING\"/>\n"
-                            "    <field number=\"35\" name=\"MsgType\" type=\"STRING\"/>\n"
-                            "    <field number=\"55\" name=\"Symbol\" type=\"STRING\"/>\n"
-                            "  </fields>\n"
-                            "  <messages>\n"
-                            "    <message name=\"TestMsg\" msgtype=\"T\" msgcat=\"app\">\n"
-                            "      <field name=\"Symbol\" required=\"Y\"/>\n"
-                            "    </message>\n"
-                            "  </messages>\n"
-                            "</fix>\n";
+const char *const kMinimalFix42 = "<?xml version=\"1.0\"?>\n"
+                                  "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
+                                  "  <fields>\n"
+                                  "    <field number=\"8\" name=\"BeginString\" type=\"STRING\"/>\n"
+                                  "    <field number=\"35\" name=\"MsgType\" type=\"STRING\"/>\n"
+                                  "    <field number=\"55\" name=\"Symbol\" type=\"STRING\"/>\n"
+                                  "  </fields>\n"
+                                  "  <messages>\n"
+                                  "    <message name=\"TestMsg\" msgtype=\"T\" msgcat=\"app\">\n"
+                                  "      <field name=\"Symbol\" required=\"Y\"/>\n"
+                                  "    </message>\n"
+                                  "  </messages>\n"
+                                  "</fix>\n";
 
 const char *kFix42WithComponentAndGroup = "<?xml version=\"1.0\"?>\n"
                                           "<fix type=\"FIX\" major=\"4\" minor=\"2\">\n"
@@ -274,7 +269,7 @@ TEST(DictionarySetTest, LoadsDirectoryAndFindsByBeginString)
 
     fix::DictionarySet set;
     std::string        error;
-    ASSERT_TRUE(set.loadFromDirectory(temp.path().string(), &error)) << error;
+    ASSERT_TRUE(set.loadFromDirectory(temp.path().string(), error)) << error;
 
     const fix::Dictionary *dict = set.findByBeginString("FIX.4.2");
     EXPECT_NE(dict, nullptr);
@@ -288,7 +283,7 @@ TEST(DecoderTest, AssignsFieldNamesFromDictionary)
 
     fix::Decoder decoder;
     std::string  error;
-    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), &error)) << error;
+    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), error)) << error;
 
     const std::string         raw     = "8=FIX.4.2|35=T|55=IBM|";
     const fix::DecodedMessage decoded = decoder.decode(raw);
@@ -364,15 +359,14 @@ TEST(DecoderValidationTest, ValidatesComponentMandatoryFields)
 
     fix::Decoder decoder;
     std::string  error;
-    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), &error)) << error;
+    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), error)) << error;
 
-    const std::string good =
-     "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|448=PARTY2|447=D|452=3|";
+    const std::string         good = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|448=PARTY2|447=D|452=3|";
     const fix::DecodedMessage good_decoded = decoder.decode(good);
     EXPECT_TRUE(good_decoded.structurally_valid);
     EXPECT_TRUE(good_decoded.validation_errors.empty());
 
-    const std::string bad = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|448=PARTY2|447=D|";
+    const std::string         bad         = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|448=PARTY2|447=D|";
     const fix::DecodedMessage bad_decoded = decoder.decode(bad);
     EXPECT_FALSE(bad_decoded.structurally_valid);
     EXPECT_TRUE(hasValidationErrorContaining(bad_decoded, "Missing required field 'PartyRole'"));
@@ -386,9 +380,9 @@ TEST(DecoderValidationTest, ValidatesGroupCountAgainstActualEntries)
 
     fix::Decoder decoder;
     std::string  error;
-    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), &error)) << error;
+    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), error)) << error;
 
-    const std::string bad = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|";
+    const std::string         bad         = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|";
     const fix::DecodedMessage bad_decoded = decoder.decode(bad);
 
     EXPECT_FALSE(bad_decoded.structurally_valid);
@@ -403,15 +397,14 @@ TEST(DecoderValidationTest, DecodeObjectCarriesStructuralValidation)
 
     fix::Decoder decoder;
     std::string  error;
-    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), &error)) << error;
+    ASSERT_TRUE(decoder.loadDictionariesFromDirectory(temp.path().string(), error)) << error;
 
-    const std::string good =
-     "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|448=PARTY2|447=D|452=3|";
+    const std::string        good = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|448=PARTY2|447=D|452=3|";
     const fix::DecodedObject good_decoded = decoder.decodeObject(good);
     EXPECT_TRUE(good_decoded.structurally_valid);
     EXPECT_TRUE(good_decoded.validation_errors.empty());
 
-    const std::string bad = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|";
+    const std::string        bad         = "8=FIX.4.2|35=D|55=IBM|453=2|448=PARTY1|447=D|452=1|";
     const fix::DecodedObject bad_decoded = decoder.decodeObject(bad);
     EXPECT_FALSE(bad_decoded.structurally_valid);
     EXPECT_FALSE(bad_decoded.validation_errors.empty());
@@ -423,7 +416,7 @@ TEST(DecoderValidationTest, RealDictionaryRejectsResendRequestMissingBeginSeqNo)
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
     const std::string message =
@@ -441,13 +434,13 @@ TEST(DecoderValidationTest, RealDictionaryRejectsResendRequestMissingBeginSeqNo)
 
 TEST_P(SampleMessagesTest, ValidSamplesDecode)
 {
-    const auto sample = GetParam();
+    const auto &sample = GetParam();
 
     fix::Decoder decoder;
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
     const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/valid" / sample.file_name;
@@ -466,13 +459,13 @@ TEST_P(SampleMessagesTest, ValidSamplesDecode)
 
 TEST_P(SampleMessagesTest, MutatedSamplesFailDecodeChecks)
 {
-    const auto sample = GetParam();
+    const auto &sample = GetParam();
 
     fix::Decoder decoder;
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
     const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/valid" / sample.file_name;
@@ -504,7 +497,7 @@ TEST_P(RealisticSubsetMessagesTest, RealisticSubsetDecodes)
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
     const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "test/unit/test_messages" / sample.file_name;
@@ -523,18 +516,17 @@ TEST_P(RealisticSubsetMessagesTest, RealisticSubsetDecodes)
 
 TEST_P(GeneratedRealisticCorrectMessagesTest, GeneratedCorrectMessagesDecode)
 {
-    const auto sample = GetParam();
+    const auto &sample = GetParam();
 
     fix::Decoder decoder;
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
-    const auto file_path =
-     std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/realistic" / sample.file_name;
-    const auto messages = readMessageFile(file_path);
+    const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/realistic" / sample.file_name;
+    const auto messages  = readMessageFile(file_path);
 
     ASSERT_EQ(messages.size(), 850U) << "Expected 850 realistic correct messages in " << file_path.string();
 
@@ -548,18 +540,17 @@ TEST_P(GeneratedRealisticCorrectMessagesTest, GeneratedCorrectMessagesDecode)
 
 TEST_P(GeneratedRealisticSemanticMessagesTest, GeneratedSemanticMessagesAreSyntacticallyValid)
 {
-    const auto sample = GetParam();
+    const auto &sample = GetParam();
 
     fix::Decoder decoder;
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
-    const auto file_path =
-     std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/realistic" / sample.file_name;
-    const auto messages = readMessageFile(file_path);
+    const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/realistic" / sample.file_name;
+    const auto messages  = readMessageFile(file_path);
 
     ASSERT_EQ(messages.size(), 100U) << "Expected 100 realistic semantic-incorrect messages in " << file_path.string();
 
@@ -573,18 +564,17 @@ TEST_P(GeneratedRealisticSemanticMessagesTest, GeneratedSemanticMessagesAreSynta
 
 TEST_P(GeneratedRealisticGarbledMessagesTest, GeneratedGarbledMessagesFailDecodeChecks)
 {
-    const auto sample = GetParam();
+    const auto &sample = GetParam();
 
     fix::Decoder decoder;
     std::string  error;
     ASSERT_TRUE(
      decoder.loadDictionariesFromDirectory((std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/quickfix").string(),
-                                           &error))
+                                           error))
      << error;
 
-    const auto file_path =
-     std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/realistic" / sample.file_name;
-    const auto messages = readMessageFile(file_path);
+    const auto file_path = std::filesystem::path(FIXDECODER_SOURCE_DIR) / "data/samples/realistic" / sample.file_name;
+    const auto messages  = readMessageFile(file_path);
 
     ASSERT_EQ(messages.size(), 50U) << "Expected 50 realistic garbled messages in " << file_path.string();
 

@@ -50,8 +50,8 @@ namespace fix
 template<int Tag, char DelimiterA = '|', char DelimiterB = 1, std::size_t Width = sizeof(std::size_t)>
 struct basic_fix_msg_key
 {
-    static_assert(Tag > 0, "Tag must be greater than zero");
-    static_assert(Width > 0 && Width <= sizeof(std::size_t), "Width must be in [1, sizeof(size_t)]");
+    static_assert(Tag > 0, R"(Tag must be greater than zero)");
+    static_assert(Width > 0 && Width <= sizeof(std::size_t), R"(Width must be in [1, sizeof(size_t)])");
 
     /**
      * @brief Builds a key from a raw FIX message.
@@ -61,8 +61,8 @@ struct basic_fix_msg_key
     {
         char                   buffer[sizeof(std::size_t)] = {};
         const std::string_view tag_value                   = extractTagValue(message);
-        const std::size_t      count                       = (tag_value.size() < Width) ? tag_value.size() : Width;
-        if(count > 0)
+
+        if(const std::size_t count = (tag_value.size() < Width) ? tag_value.size() : Width; count > 0)
         {
             std::memcpy(buffer, tag_value.data(), count);
         }
@@ -117,8 +117,7 @@ struct basic_fix_msg_key
                 ++i;
             }
 
-            const auto token_len = token_end - token_start;
-            if(token_len <= tag_len)
+            if(const auto token_len = token_end - token_start; token_len <= tag_len)
             {
                 continue;
             }

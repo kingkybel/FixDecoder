@@ -81,9 +81,10 @@ namespace
 
     std::string toUpperCopy(std::string value)
     {
-        std::ranges::transform(value,
-                               value.begin(),
-                               [](const unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        std::transform(value.begin(),
+                       value.end(),
+                       value.begin(),
+                       [](const unsigned char c) { return static_cast<char>(std::toupper(c)); });
         return value;
     }
 
@@ -407,23 +408,21 @@ namespace
         if(!positioned)
         {
             index = 0;
-            while(index < fields.size())
+            while(index < fields.size() && !positioned)
             {
-                bool matches_member = false;
                 for(const Member &member: message_def->members)
                 {
                     const std::optional<std::uint32_t> member_tag = firstMemberTag(dict, member);
                     if(member_tag && fields[index].tag == *member_tag)
                     {
-                        matches_member = true;
+                        positioned = true;
                         break;
                     }
                 }
-                if(matches_member)
+                if(!positioned)
                 {
-                    break;
+                    ++index;
                 }
-                ++index;
             }
         }
 

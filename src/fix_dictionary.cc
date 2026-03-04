@@ -56,8 +56,8 @@ namespace
     {
         for(const tinyxml2::XMLElement *child = parent->FirstChildElement(); child; child = child->NextSiblingElement())
         {
-            const std::string element_name = child->Name() ? child->Name() : "";
-            if(element_name != "field" && element_name != "component" && element_name != "group")
+            if(const std::string element_name = child->Name() ? child->Name() : "";
+               element_name != "field" && element_name != "component" && element_name != "group")
             {
                 continue;
             }
@@ -82,7 +82,7 @@ namespace
 
 }  // namespace
 
-std::string Dictionary::buildBeginString(const std::string &type, int major, int minor)
+std::string Dictionary::buildBeginString(std::string_view type, int major, int minor)
 {
     if(type == "FIXT")
     {
@@ -99,7 +99,7 @@ bool Dictionary::isRequiredAttr(const char *value)
     return value && (value[0] == upper_y || value[0] == lower_y);
 }
 
-bool Dictionary::loadFromFile(const std::string &path, std::string *error)
+bool Dictionary::loadFromFile(const std::filesystem::path &path, std::string *error)
 {
     fields_.clear();
     field_name_index_.clear();
@@ -107,13 +107,14 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
     components_.clear();
 
     tinyxml2::XMLDocument doc;
-    const auto            status = doc.LoadFile(path.c_str());
-    if(status != tinyxml2::XML_SUCCESS)
+
+    if(const auto status = doc.LoadFile(path.c_str()); status != tinyxml2::XML_SUCCESS)
     {
         if(error)
         {
-            *error = "Failed to load XML: " + path;
+            *error = "Failed to load XML: " + path.string();
         }
+
         return false;
     }
 
@@ -122,8 +123,9 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
     {
         if(error)
         {
-            *error = "Missing <fix> root element in " + path;
+            *error = "Missing <fix> root element in " + path.string();
         }
+
         return false;
     }
 
@@ -133,8 +135,7 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
     root->QueryIntAttribute("servicepack", &servicepack_);
     begin_string_ = buildBeginString(fix_type_, major_, minor_);
 
-    const tinyxml2::XMLElement *fields = root->FirstChildElement("fields");
-    if(fields)
+    if(const tinyxml2::XMLElement *fields = root->FirstChildElement("fields"); nullptr != fields)
     {
         for(const tinyxml2::XMLElement *field = fields->FirstChildElement("field"); field;
             field                             = field->NextSiblingElement("field"))
@@ -166,8 +167,7 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
         }
     }
 
-    const tinyxml2::XMLElement *messages = root->FirstChildElement("messages");
-    if(messages)
+    if(const tinyxml2::XMLElement *messages = root->FirstChildElement("messages"); nullptr != messages)
     {
         for(const tinyxml2::XMLElement *msg = messages->FirstChildElement("message"); msg;
             msg                             = msg->NextSiblingElement("message"))
@@ -187,8 +187,7 @@ bool Dictionary::loadFromFile(const std::string &path, std::string *error)
         }
     }
 
-    const tinyxml2::XMLElement *components = root->FirstChildElement("components");
-    if(components)
+    if(const tinyxml2::XMLElement *components = root->FirstChildElement("components"); nullptr != components)
     {
         for(const tinyxml2::XMLElement *component = components->FirstChildElement("component"); component;
             component                             = component->NextSiblingElement("component"))
@@ -247,17 +246,15 @@ const std::vector<Member> *Dictionary::componentByName(const std::string &name) 
     return &it->second;
 }
 
-bool DictionarySet::loadFromDirectory(const std::string &path, std::string *error)
+bool DictionarySet::loadFromDirectory(const std::filesystem::path &path, std::string &error)
 {
     dictionaries_.clear();
     begin_index_.clear();
 
     if(!std::filesystem::exists(path))
     {
-        if(error)
-        {
-            *error = "Dictionary path does not exist: " + path;
-        }
+        error = "Dictionary path does not exist: " + path.string();
+
         return false;
     }
 
@@ -274,9 +271,9 @@ bool DictionarySet::loadFromDirectory(const std::string &path, std::string *erro
             continue;
         }
 
-        Dictionary  dict;
-        std::string local_error;
-        if(!dict.loadFromFile(entry.path().string(), &local_error))
+        Dictionary dict;
+
+        if(std::string local_error; !dict.loadFromFile(entry.path(), &local_error))
         {
             failures.emplace_back(std::move(local_error));
             continue;
@@ -289,24 +286,21 @@ bool DictionarySet::loadFromDirectory(const std::string &path, std::string *erro
 
     if(dictionaries_.empty())
     {
-        if(error)
+        std::ostringstream oss;
+        oss << "No dictionaries loaded from " << path;
+        if(!failures.empty())
         {
-            std::ostringstream oss;
-            oss << "No dictionaries loaded from " << path;
-            if(!failures.empty())
+            oss << ". Errors: ";
+            for(std::size_t i = 0; i < failures.size(); ++i)
             {
-                oss << ". Errors: ";
-                for(std::size_t i = 0; i < failures.size(); ++i)
+                if(i > 0)
                 {
-                    if(i > 0)
-                    {
-                        oss << "; ";
-                    }
-                    oss << failures[i];
+                    oss << "; ";
                 }
+                oss << failures[i];
             }
-            *error = oss.str();
         }
+        error = oss.str();
         return false;
     }
 

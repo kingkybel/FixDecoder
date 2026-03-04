@@ -110,9 +110,8 @@ void runDecodeObjectExample(const fix::Decoder &decoder, const std::string &mess
 
     const auto symbol   = decoded[fix::generated::fix42::FieldTag::kSymbol].as<std::string_view>();
     const auto quantity = decoded[fix::generated::fix42::FieldTag::kOrderQty].as<double>();
-    const auto price    = decoded[fix::generated::fix42::FieldTag::kPrice].as<double>();
 
-    if(symbol && quantity && price)
+    if(const auto price = decoded[fix::generated::fix42::FieldTag::kPrice].as<double>(); symbol && quantity && price)
     {
         std::cout << "Symbol=" << *symbol << " OrderQty=" << *quantity << " Price=" << *price << "\n";
     }
@@ -172,7 +171,7 @@ void runGeneratedObjectExample(fix::Decoder &decoder, const std::string &message
 
     using Map = util::generator_map<8, fix::fix_msg_key>;
 
-    Map::registerGenerator("35=D|",
+    Map::registerGenerator(R"(35=D|)",
                            [&](const std::string &raw)
                            {
                                const fix::DecodedMessage decoded = decoder.decode(raw);
@@ -201,21 +200,21 @@ int main(int argc, char **argv)
 
     const std::string basic_decode_message = (argc > 2) ?
                                               argv[2] :
-                                              "8=FIX.4.2|9=65|35=D|49=BUY|56=SELL|34=2|52=20100225-19:41:57.316|11=ABC|"
-                                              "21=1|55=IBM|54=1|60=20100225-19:41:57.316|38=100|40=1|10=062|";
+                                              R"(8=FIX.4.2|9=65|35=D|49=BUY|56=SELL|34=2|52=20100225-19:41:57.316|11=ABC|)"
+                                              R"(21=1|55=IBM|54=1|60=20100225-19:41:57.316|38=100|40=1|10=062|)";
 
     const std::string object_decode_message =
-     (argc > 3) ? argv[3] : "8=FIX.4.2|9=61|35=T|55=IBM|38=100|44=123.45|10=000|";
+     (argc > 3) ? argv[3] : R"(8=FIX.4.2|9=61|35=T|55=IBM|38=100|44=123.45|10=000|)";
 
     const std::string appl_ver_id_message =
      (argc > 4) ? argv[4] :
-                  "8=FIXT.1.1|9=108|35=D|1128=9|49=BUY|56=SELL|34=2|52=20260211-12:00:00.000|11=DEF|55=MSFT|54=1|60="
-                  "20260211-12:00:00.000|38=250|40=2|44=420.50|10=000|";
+                  R"(8=FIXT.1.1|9=108|35=D|1128=9|49=BUY|56=SELL|34=2|52=20260211-12:00:00.000|11=DEF|55=MSFT|54=1|60=)"
+                  R"(20260211-12:00:00.000|38=250|40=2|44=420.50|10=000|)";
 
     fix::Decoder decoder;
     std::string  error;
 
-    if(!decoder.loadDictionariesFromDirectory(dictionary_directory, &error))
+    if(!decoder.loadDictionariesFromDirectory(dictionary_directory, error))
     {
         std::cerr << "Dictionary load warning: " << error << "\n";
     }

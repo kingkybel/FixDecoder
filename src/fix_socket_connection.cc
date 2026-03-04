@@ -37,8 +37,7 @@
 namespace fix
 {
 
-SocketConnection::SocketConnection(const int fd)
-: fd_(fd)
+SocketConnection::SocketConnection(const int fd) : fd_(fd)
 {
 }
 
@@ -47,8 +46,7 @@ SocketConnection::~SocketConnection()
     close();
 }
 
-SocketConnection::SocketConnection(SocketConnection &&other) noexcept
-: fd_(other.fd_)
+SocketConnection::SocketConnection(SocketConnection &&other) noexcept : fd_(other.fd_)
 {
     other.fd_ = -1;
 }
@@ -75,8 +73,9 @@ bool SocketConnection::connectTo(const std::string &host, const int port)
     hints.ai_socktype = SOCK_STREAM;
 
     addrinfo *res = nullptr;
-    const int rc  = ::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res);
-    if(rc != 0 || res == nullptr)
+
+    if(const int rc = ::getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res);
+       rc != 0 || res == nullptr)
     {
         return false;
     }
@@ -118,7 +117,7 @@ bool SocketConnection::listenOn(const int port, const int backlog)
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port        = htons(static_cast<std::uint16_t>(port));
 
-    if(::bind(fd_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0)
+    if(::bind(fd_, static_cast<sockaddr *>(static_cast<void *>(&addr)), sizeof(addr)) != 0)
     {
         close();
         return false;

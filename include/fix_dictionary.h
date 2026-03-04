@@ -28,10 +28,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
-
 namespace fix
 {
 
@@ -116,7 +117,7 @@ class Dictionary
      * @param error Optional output parameter for a human-readable error message.
      * @return `true` if loading succeeded, `false` otherwise.
      */
-    bool loadFromFile(const std::string &path, std::string *error = nullptr);
+    bool loadFromFile(const std::filesystem::path &path, std::string *error = nullptr);
 
     /**
      * @brief Finds a field definition by numeric tag.
@@ -179,7 +180,7 @@ class Dictionary
     std::unordered_map<std::string, MessageDef>          messages_;
     std::unordered_map<std::string, std::vector<Member>> components_;
 
-    static std::string buildBeginString(const std::string &type, int major, int minor);
+    static std::string buildBeginString(std::string_view type, int major, int minor);
 };
 
 /**
@@ -191,10 +192,10 @@ class DictionarySet
     /**
      * @brief Loads all dictionary XML files from a directory.
      * @param path Directory containing dictionary files.
-     * @param error Optional output parameter for a human-readable error message.
+     * @param error Output parameter for a human-readable error message.
      * @return `true` if at least one dictionary was loaded, `false` otherwise.
      */
-    bool loadFromDirectory(const std::string &path, std::string *error = nullptr);
+    bool loadFromDirectory(const std::filesystem::path &path, std::string &error);
 
     /**
      * @brief Finds a dictionary by begin string.

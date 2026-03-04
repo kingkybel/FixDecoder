@@ -197,7 +197,7 @@ The executable demonstrates:
 
 fix::Decoder decoder;
 std::string err;
-if(!decoder.loadDictionariesFromDirectory("data/quickfix", &err))
+if(!decoder.loadDictionariesFromDirectory("data/quickfix", err))
 {
     // handle error
 }

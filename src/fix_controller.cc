@@ -59,7 +59,7 @@ namespace
         return std::to_string(value);
     }
 
-    bool parseUint(const std::string &value, std::uint32_t &out)
+    bool parseUint(std::string_view value, std::uint32_t &out)
     {
         if(value.empty())
         {
@@ -91,14 +91,16 @@ Controller::Controller(std::string sender_comp_id,
 {
 }
 
-std::string Controller::buildMessageWithSeqNum(std::string               msg_type,
+std::string Controller::buildMessageWithSeqNum(std::string_view          msg_type,
                                                const std::vector<Field> &fields,
-                                               const std::uint32_t       seq_num) const
+                                               std::uint32_t             seq_num) const
 {
     std::string body;
     body.reserve(256);
 
-    body += "35=" + msg_type + kSoh;
+    body += "35=";
+    body += msg_type;
+    body += kSoh;
     body += "34=" + toString(seq_num) + kSoh;
     body += "49=" + sender_comp_id_ + kSoh;
     body += "56=" + target_comp_id_ + kSoh;
@@ -126,7 +128,8 @@ std::string Controller::buildMessageWithSeqNum(std::string               msg_typ
 
 std::string Controller::buildMessage(std::string msg_type, const std::vector<Field> &fields)
 {
-    return buildMessageWithSeqNum(std::move(msg_type), fields, next_outgoing_seq_num_++);
+    return buildMessageWithSeqNum(std::move(msg_type), fields, next_outgoing_seq_num_);
+    next_outgoing_seq_num_++;
 }
 
 std::string Controller::buildLogon(const bool reset_seq_num)
@@ -174,7 +177,7 @@ std::string Controller::buildLogout(std::string text)
     return buildMessage("5", fields);
 }
 
-std::string Controller::buildApplicationMessage(std::string msg_type, std::vector<Field> fields)
+std::string Controller::buildApplicationMessage(std::string msg_type, const std::vector<Field> &fields)
 {
     return buildMessage(std::move(msg_type), fields);
 }
@@ -225,35 +228,25 @@ std::vector<std::string> Controller::consume(const std::string_view incoming_byt
     stream_buffer_ += normalize(incoming_bytes);
 
     std::vector<std::string> messages;
-    while(true)
+    std::size_t              begin;
+    while((begin = stream_buffer_.find("8=")) != std::string::npos)
     {
-        const std::size_t begin = stream_buffer_.find("8=");
-        if(begin == std::string::npos)
-        {
-            stream_buffer_.clear();
-            break;
-        }
         if(begin > 0)
         {
             stream_buffer_.erase(0, begin);
         }
 
         const std::size_t trailer = stream_buffer_.find(std::string(1, kSoh) + "10=");
-        if(trailer == std::string::npos)
-        {
-            break;
-        }
-        if(trailer + 8 > stream_buffer_.size())
+        if(trailer == std::string::npos || trailer + 8 > stream_buffer_.size())
         {
             break;
         }
 
-        const char c1  = stream_buffer_[trailer + 4];
-        const char c2  = stream_buffer_[trailer + 5];
-        const char c3  = stream_buffer_[trailer + 6];
-        const char end = stream_buffer_[trailer + 7];
-        if(!std::isdigit(static_cast<unsigned char>(c1)) || !std::isdigit(static_cast<unsigned char>(c2))
-           || !std::isdigit(static_cast<unsigned char>(c3)) || end != kSoh)
+        if(const bool validNumber = std::isdigit(static_cast<unsigned char>(stream_buffer_[trailer + 4]))
+                                    && std::isdigit(static_cast<unsigned char>(stream_buffer_[trailer + 5]))
+                                    && std::isdigit(static_cast<unsigned char>(stream_buffer_[trailer + 6]))
+                                    && stream_buffer_[trailer + 7] == kSoh;
+           !validNumber)
         {
             stream_buffer_.erase(0, trailer + 1);
             continue;
@@ -263,10 +256,15 @@ std::vector<std::string> Controller::consume(const std::string_view incoming_byt
         stream_buffer_.erase(0, trailer + 8);
     }
 
+    if(stream_buffer_.find("8=") == std::string::npos)
+    {
+        stream_buffer_.clear();
+    }
+
     return messages;
 }
 
-bool Controller::parseMessage(const std::string &normalized_message, ParsedMessage &parsed, ParseError &error)
+bool Controller::parseMessage(std::string_view normalized_message, ParsedMessage &parsed, ParseError &error)
 {
     error = ParseError{};
 
@@ -297,7 +295,7 @@ bool Controller::parseMessage(const std::string &normalized_message, ParsedMessa
             return false;
         }
 
-        std::string value = normalized_message.substr(eq + 1, end - eq - 1);
+        std::string value{normalized_message.substr(eq + 1, end - eq - 1)};
         result.ordered_fields.push_back(ParsedField{tag, std::move(value)});
         pos = end + 1;
     }
@@ -336,7 +334,7 @@ bool Controller::parseMessage(const std::string &normalized_message, ParsedMessa
 
 std::string Controller::parseErrorText(const ParseError &error)
 {
-    const auto with_field = [&](const std::string &base) -> std::string
+    const auto with_field = [&](const std::string &base)
     {
         if(error.field > 0)
         {
@@ -417,7 +415,8 @@ bool Controller::validateBodyLength(const std::string &normalized_message)
     }
 
     std::uint32_t expected_len = 0;
-    if(!parseUint(normalized_message.substr(body_len_eq + 1, body_field_end - body_len_eq - 1), expected_len))
+    if(!parseUint(std::string_view(normalized_message).substr(body_len_eq + 1, body_field_end - body_len_eq - 1),
+                  expected_len))
     {
         return false;
     }
@@ -458,8 +457,8 @@ Controller::Action Controller::onMessage(const std::string &raw_message)
     }
 
     ParsedMessage parsed;
-    ParseError    parse_error;
-    if(!parseMessage(normalized, parsed, parse_error))
+
+    if(ParseError parse_error; !parseMessage(normalized, parsed, parse_error))
     {
         action.disposition = MessageDisposition::kGarbled;
         action.events.emplace_back("garbled_message");
@@ -468,8 +467,8 @@ Controller::Action Controller::onMessage(const std::string &raw_message)
     }
 
     const std::string sender = fieldValue(parsed, 49);
-    const std::string target = fieldValue(parsed, 56);
-    if(sender != target_comp_id_ || target != sender_comp_id_)
+
+    if(const std::string target = fieldValue(parsed, 56); sender != target_comp_id_ || target != sender_comp_id_)
     {
         action.disposition = MessageDisposition::kGarbled;
         action.events.emplace_back("comp_id_mismatch");
@@ -544,8 +543,8 @@ Controller::Action Controller::onMessage(const std::string &raw_message)
 
     if(parsed.msg_type == "4")
     {
-        std::uint32_t new_seq = 0;
-        if(parseUint(fieldValue(parsed, 36), new_seq) && new_seq >= expected_incoming_seq_num_)
+        if(std::uint32_t new_seq = 0;
+           parseUint(fieldValue(parsed, 36), new_seq) && new_seq >= expected_incoming_seq_num_)
         {
             expected_incoming_seq_num_ = new_seq;
             action.events.emplace_back("sequence_reset");

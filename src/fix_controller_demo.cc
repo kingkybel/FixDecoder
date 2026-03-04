@@ -32,9 +32,9 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
-#include <fcntl.h>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -113,8 +113,8 @@ std::vector<std::string> splitCsv(const std::string &input)
     {
         const std::size_t comma = input.find(',', start);
         const std::size_t end   = (comma == std::string::npos) ? input.size() : comma;
-        const std::string item  = trimCopy(input.substr(start, end - start));
-        if(!item.empty())
+
+        if(const std::string item = trimCopy(input.substr(start, end - start)); !item.empty())
         {
             tokens.push_back(item);
         }
@@ -148,9 +148,10 @@ std::string normalizeVersionToken(std::string begin_string)
     begin_string.erase(
      std::remove_if(begin_string.begin(), begin_string.end(), [](const unsigned char ch) { return !std::isalnum(ch); }),
      begin_string.end());
-    std::transform(begin_string.begin(), begin_string.end(), begin_string.begin(), [](const unsigned char ch) {
-        return static_cast<char>(std::toupper(ch));
-    });
+    std::transform(begin_string.begin(),
+                   begin_string.end(),
+                   begin_string.begin(),
+                   [](const unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
     return begin_string;
 }
 
@@ -171,14 +172,14 @@ std::string extractPayloadSeed(const std::string &line)
     }
 
     std::vector<std::pair<std::string, std::string>> tags;
-    std::size_t                                       start = 0;
+    std::size_t                                      start = 0;
     while(start <= normalized.size())
     {
-        const std::size_t next = normalized.find('|', start);
-        const std::size_t end  = (next == std::string::npos) ? normalized.size() : next;
+        const std::size_t next  = normalized.find('|', start);
+        const std::size_t end   = (next == std::string::npos) ? normalized.size() : next;
         const std::string token = normalized.substr(start, end - start);
-        const std::size_t sep   = token.find('=');
-        if(sep != std::string::npos && sep > 0 && sep + 1 < token.size())
+
+        if(const std::size_t sep = token.find('='); sep != std::string::npos && sep > 0 && sep + 1 < token.size())
         {
             tags.emplace_back(token.substr(0, sep), token.substr(sep + 1));
         }
@@ -210,9 +211,8 @@ std::string extractPayloadSeed(const std::string &line)
     return {};
 }
 
-std::vector<std::string> loadPayloadSeeds(const std::string &begin_string,
-                                          const std::string &message_file,
-                                          const std::string &message_dir)
+std::vector<std::string>
+ loadPayloadSeeds(const std::string &begin_string, const std::string &message_file, const std::string &message_dir)
 {
     std::string resolved_file = trimCopy(message_file);
     if(resolved_file.empty() && !trimCopy(message_dir).empty())
@@ -221,9 +221,9 @@ std::vector<std::string> loadPayloadSeeds(const std::string &begin_string,
         if(!token.empty())
         {
             const std::filesystem::path dir_path(trimCopy(message_dir));
-            int                   best_count = -1;
-            std::filesystem::path best_path;
-            const std::string     suffix = ".messages";
+            int                         best_count = -1;
+            std::filesystem::path       best_path;
+            const std::string           suffix = ".messages";
 
             auto choose_best = [&](const std::string &prefix, const bool allow_underscore_middle) -> bool
             {
@@ -329,10 +329,10 @@ std::vector<std::string> loadPayloadSeeds(const std::string &begin_string,
     return seeds;
 }
 
-std::string buildRequestId(const std::string &scenario,
+std::string buildRequestId(const std::string              &scenario,
                            const std::vector<std::string> &payload_seeds,
-                           const int index,
-                           const int perf_payload_size)
+                           const int                       index,
+                           const int                       perf_payload_size)
 {
     if(payload_seeds.empty())
     {
@@ -409,24 +409,24 @@ int runSingleSession(const std::string &role,
         connection = std::move(*accepted);
     }
 
-    bool handshake_complete = false;
-    bool scenario_sent      = false;
-    bool scenario_complete  = !(load_test_scenario && client_role);
-    int  sent_requests      = 0;
-    int  received_replies   = 0;
-    int  next_request_index = 1;
-    auto deadline           = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
-    const std::vector<std::string> payload_seeds =
-     (client_role && load_test_scenario) ? loadPayloadSeeds(begin_string, message_file, message_dir)
-                                         : std::vector<std::string>{};
-    const bool loop_until_runtime =
-     (client_role && load_test_scenario && !payload_seeds.empty()
-      && envOrDefaultInt("FIX_LOOP_PAYLOADS_UNTIL_RUNTIME", 0) > 0);
-    const int max_in_flight = std::max(1, envOrDefaultInt("FIX_MAX_IN_FLIGHT", 64));
+    bool                           handshake_complete = false;
+    bool                           scenario_sent      = false;
+    bool                           scenario_complete  = !(load_test_scenario && client_role);
+    int                            sent_requests      = 0;
+    int                            received_replies   = 0;
+    int                            next_request_index = 1;
+    auto                           deadline = std::chrono::steady_clock::now() + std::chrono::seconds(runtime_seconds);
+    const std::vector<std::string> payload_seeds      = (client_role && load_test_scenario) ?
+                                                         loadPayloadSeeds(begin_string, message_file, message_dir) :
+                                                         std::vector<std::string>{};
+    const bool                     loop_until_runtime = (client_role && load_test_scenario && !payload_seeds.empty()
+                                     && envOrDefaultInt("FIX_LOOP_PAYLOADS_UNTIL_RUNTIME", 0) > 0);
+    const int                      max_in_flight      = std::max(1, envOrDefaultInt("FIX_MAX_IN_FLIGHT", 64));
 
     while(std::chrono::steady_clock::now() < deadline)
     {
-        char                                       buffer[2048];
+        bool exit_loop = false;
+        char buffer[2048];
         const fix::SocketConnection::ReceiveResult received = connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
         if(received.bytes_read > 0)
         {
@@ -456,17 +456,16 @@ int runSingleSession(const std::string &role,
                 }
             }
         }
-        else if(received.bytes_read == 0)
+        else if(received.bytes_read == 0 || (received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK))
         {
-            break;
-        }
-        else if(received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK)
-        {
-            std::cerr << "recv failed: " << fix::SocketConnection::errorText(received.error_number) << '\n';
-            break;
+            if(received.bytes_read < 0)
+            {
+                std::cerr << "recv failed: " << fix::SocketConnection::errorText(received.error_number) << '\n';
+            }
+            exit_loop = true;
         }
 
-        if(controller.state() == fix::Controller::SessionState::kEstablished)
+        if(!exit_loop && controller.state() == fix::Controller::SessionState::kEstablished)
         {
             handshake_complete = true;
             if(client_role && !scenario_sent)
@@ -498,7 +497,7 @@ int runSingleSession(const std::string &role,
                     {
                         const std::string test_req_id =
                          buildRequestId(scenario, payload_seeds, next_request_index, perf_payload_size);
-                        const std::string request     = controller.buildTestRequest(test_req_id);
+                        const std::string request = controller.buildTestRequest(test_req_id);
                         std::cout << "[client] -> ";
                         printSafeFix(request);
                         if(!connection.sendAll(request))
@@ -513,8 +512,7 @@ int runSingleSession(const std::string &role,
             }
             else if(client_role && load_test_scenario && loop_until_runtime)
             {
-                while((sent_requests - received_replies) < max_in_flight
-                      && std::chrono::steady_clock::now() < deadline)
+                while((sent_requests - received_replies) < max_in_flight && std::chrono::steady_clock::now() < deadline)
                 {
                     const std::string test_req_id =
                      buildRequestId(scenario, payload_seeds, next_request_index, perf_payload_size);
@@ -531,20 +529,26 @@ int runSingleSession(const std::string &role,
             }
         }
 
-        if(scenario == "handshake" && handshake_complete)
+        if(!exit_loop)
         {
-            scenario_complete = true;
-            break;
+            if(scenario == "handshake" && handshake_complete)
+            {
+                scenario_complete = true;
+                exit_loop         = true;
+            }
+            else if(controller.state() == fix::Controller::SessionState::kTerminated)
+            {
+                exit_loop = true;
+            }
+            else if(load_test_scenario && scenario_sent && !loop_until_runtime && received_replies >= sent_requests)
+            {
+                scenario_complete = true;
+                exit_loop         = true;
+            }
         }
 
-        if(controller.state() == fix::Controller::SessionState::kTerminated)
+        if(exit_loop)
         {
-            break;
-        }
-
-        if(load_test_scenario && scenario_sent && !loop_until_runtime && received_replies >= sent_requests)
-        {
-            scenario_complete = true;
             break;
         }
 
@@ -595,6 +599,7 @@ int runExchangeServer(const int port, const std::string &begin_string, const int
 
         while(std::chrono::steady_clock::now() < session_deadline)
         {
+            bool exit_session = false;
             char                                       buffer[2048];
             const fix::SocketConnection::ReceiveResult received =
              connection.receive(buffer, sizeof(buffer), MSG_DONTWAIT);
@@ -623,17 +628,21 @@ int runExchangeServer(const int port, const std::string &begin_string, const int
                     }
                 }
             }
-            else if(received.bytes_read == 0)
+            else if(received.bytes_read == 0 || (received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK))
             {
-                break;
-            }
-            else if(received.bytes_read < 0 && received.error_number != EAGAIN && received.error_number != EWOULDBLOCK)
-            {
-                std::cerr << "recv failed: " << fix::SocketConnection::errorText(received.error_number) << '\n';
-                break;
+                if(received.bytes_read < 0)
+                {
+                    std::cerr << "recv failed: " << fix::SocketConnection::errorText(received.error_number) << '\n';
+                }
+                exit_session = true;
             }
 
-            if(controller.state() == fix::Controller::SessionState::kTerminated)
+            if(!exit_session && controller.state() == fix::Controller::SessionState::kTerminated)
+            {
+                exit_session = true;
+            }
+
+            if(exit_session)
             {
                 break;
             }
