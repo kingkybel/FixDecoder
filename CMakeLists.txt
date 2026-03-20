@@ -36,6 +36,7 @@ include(CTest)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake-common/cmake/DkybBuildSettings.cmake)
 dkyb_apply_common_settings(CXX_STANDARD 23)
+dkyb_update_submodules()
 
 execute_process(
         COMMAND bash -c "printf \"%s\" $(cat /etc/os-release | grep -E \"^ID=[^\\n]*|^VERSION_ID=[^\\n]*\" | cut -f2 -d= | tr -d '\"')"
@@ -52,29 +53,29 @@ option(FIXDECODER_FETCH_GOOGLETEST "Fetch GoogleTest with CMake" ON)
 
 include(FetchContent)
 
-if (FIXDECODER_FETCH_TINYXML2)
-    # Avoid building upstream tinyxml2 test executable (xmltest) with this
-    # project's stricter warning policy (e.g. -Werror).
-    set(tinyxml2_BUILD_TESTING OFF CACHE BOOL "Disable tinyxml2 tests" FORCE)
-    FetchContent_Declare(
-            tinyxml2
-            URL https://github.com/leethomason/tinyxml2/archive/9.0.0.tar.gz
-    )
-    FetchContent_MakeAvailable(tinyxml2)
-else ()
-    find_package(tinyxml2 REQUIRED)
-endif ()
+if(FIXDECODER_FETCH_TINYXML2)
+        # Avoid building upstream tinyxml2 test executable (xmltest) with this
+        # project's stricter warning policy (e.g. -Werror).
+        set(tinyxml2_BUILD_TESTING OFF CACHE BOOL "Disable tinyxml2 tests" FORCE)
+        FetchContent_Declare(
+                tinyxml2
+                URL https://github.com/leethomason/tinyxml2/archive/9.0.0.tar.gz
+        )
+        FetchContent_MakeAvailable(tinyxml2)
+else()
+        find_package(tinyxml2 REQUIRED)
+endif()
 
-if (FIXDECODER_FETCH_GOOGLETEST)
-    set(INSTALL_GTEST ON CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-            googletest
-            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
-    )
-    FetchContent_MakeAvailable(googletest)
-else ()
-    find_package(GTest REQUIRED)
-endif ()
+if(FIXDECODER_FETCH_GOOGLETEST)
+        set(INSTALL_GTEST ON CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+                googletest
+                URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+        )
+        FetchContent_MakeAvailable(googletest)
+else()
+        find_package(GTest REQUIRED)
+endif()
 
 include_directories(
         BEFORE SYSTEM ${CMAKE_SOURCE_DIR}/include
